@@ -90,5 +90,6 @@ contract CarrieraStudente {
     function isLaureato(int _cfuNecessari) external view returns (bool) {
         return getCFUTotali() >= _cfuNecessari;
     }
+    
 
 }
