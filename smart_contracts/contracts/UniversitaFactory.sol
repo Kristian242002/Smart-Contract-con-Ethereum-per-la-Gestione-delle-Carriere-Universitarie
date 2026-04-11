@@ -5,18 +5,18 @@ import "./CarrieraStudente.sol";
 
 contract UniversitaFactory {
 
-    address public segreteria;
+    address public autorizzato;
     uint public numeroStudenti;
 
     // dizionario con : studente (chiave) => indirizzo del suo contratto CarrieraStudente 
     mapping(address => address) public carriere;
 
-    constructor(address _segreteria) {
-        segreteria = _segreteria;
+    constructor(address _autorizzato) {
+        autorizzato = _autorizzato;
     }
 
     function creaCarriera(address _studente) external returns (address) {
-        require(msg.sender == segreteria, "Solo la segreteria puo' creare carriere");
+        require(msg.sender == autorizzato, "Non autorizzato");
         require(_studente != address(0), "Indirizzo studente non valido");
         require(carriere[_studente] == address(0), "Carriera gia' esistente per questo studente");
 
