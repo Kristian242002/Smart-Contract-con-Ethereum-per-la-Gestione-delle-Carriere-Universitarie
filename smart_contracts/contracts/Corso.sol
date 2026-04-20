@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./CarrieraStudente.sol";
 
-contract Corso {
+contract Corso is AccessControl {
 
-    //Strutture :
+    bytes32 public constant SEGRETERIA_ROLE = keccak256("SEGRETERIA_ROLE");
+    bytes32 public constant PROFESSORE_ROLE = keccak256("PROFESSORE_ROLE");
+
     enum StatoCorso {
         APERTO,
         CHIUSO,
@@ -22,16 +25,16 @@ contract Corso {
 
     StatoCorso public stato;
 
-   // dizionario con : studente (chiave) => indirizzo del suo contratto CarrieraStudente
     mapping(address => address) public carriere;
     address[] public iscritti;
 
-  constructor(string memory _nome,int _cfu,uint _maxStudenti,address _professore,address _segreteria) {
+    constructor(string memory _nome,int _cfu,uint _maxStudenti,address _professore,address _segreteria,address _universita) {
         require(bytes(_nome).length > 0, "Il nome del corso non puo' essere vuoto");
         require(_cfu >= 1 && _cfu <= 20, "CFU non validi");
         require(_maxStudenti > 0, "Il numero massimo di studenti deve essere maggiore di zero");
         require(_professore != address(0), "Indirizzo professore non valido");
         require(_segreteria != address(0), "Indirizzo segreteria non valido");
+        require(_universita != address(0), "Indirizzo universita non valido");
 
         nome = _nome;
         cfu = _cfu;
@@ -39,23 +42,25 @@ contract Corso {
         professore = _professore;
         segreteria = _segreteria;
         stato = StatoCorso.APERTO;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, _segreteria);
+        _grantRole(DEFAULT_ADMIN_ROLE, _universita);
+        _grantRole(SEGRETERIA_ROLE, _segreteria);
+        _grantRole(SEGRETERIA_ROLE, _universita);
+        _grantRole(PROFESSORE_ROLE, _professore);
     }
 
-
-    function chiudiIscrizioni() external {
-        require(msg.sender == segreteria, "Solo la segreteria puo' eseguire questa operazione");
+    function chiudiIscrizioni() external onlyRole(SEGRETERIA_ROLE) {
         require(stato == StatoCorso.APERTO, "Operazione non consentita nello stato corrente");
         stato = StatoCorso.CHIUSO;
     }
 
-    function concludiCorso() external {
-        require(msg.sender == segreteria, "Solo la segreteria puo' eseguire questa operazione");
+    function concludiCorso() external onlyRole(SEGRETERIA_ROLE) {
         require(stato == StatoCorso.CHIUSO, "Operazione non consentita nello stato corrente");
         stato = StatoCorso.CONCLUSO;
     }
 
-    function iscriviStudente(address _studente, address _carriera) external {
-        require(msg.sender == segreteria, "Solo la segreteria puo' eseguire questa operazione");
+    function iscriviStudente(address _studente, address _carriera) external onlyRole(SEGRETERIA_ROLE) {
         require(stato == StatoCorso.APERTO, "Operazione non consentita nello stato corrente");
         require(_studente != address(0), "Indirizzo studente non valido");
         require(_carriera != address(0), "Indirizzo carriera non valido");
@@ -68,7 +73,7 @@ contract Corso {
     }
 
     function registraVoto(address _studente, int _voto, bool _lode) external {
-        require(msg.sender == professore || msg.sender == segreteria,"Solo il professore o la segreteria possono eseguire questa operazione");
+        require(hasRole(SEGRETERIA_ROLE, msg.sender) || hasRole(PROFESSORE_ROLE, msg.sender),"Solo il professore o la segreteria possono eseguire questa operazione");
         require(stato == StatoCorso.CHIUSO, "Operazione non consentita nello stato corrente");
         require(carriere[_studente] != address(0), "Studente non iscritto al corso");
         require(_voto >= 0 && _voto <= 30, "Voto non valido: deve essere tra 0 e 30");

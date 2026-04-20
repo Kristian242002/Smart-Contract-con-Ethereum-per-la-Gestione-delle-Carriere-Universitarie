@@ -4,27 +4,27 @@ pragma solidity ^0.8.20;
 import "./CarrieraStudente.sol";
 import "./Corso.sol";
 import "./UniversitaFactory.sol";
+import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
 
-contract Universita {
+contract Universita is AccessControlEnumerable {
 
-    address public segreteria;
+    bytes32 public constant SEGRETERIA_ROLE = keccak256("SEGRETERIA_ROLE");
+    bytes32 private constant CORSO_ROLE = keccak256("CORSO_ROLE");
+
     UniversitaFactory public factory;
 
     mapping(address => bool) public professori;
     address[] public listaProfessori;
-
     address[] public listaCorsi;
 
     constructor(address _segreteria) {
         require(_segreteria != address(0), "Indirizzo segreteria non valido");
-        segreteria = _segreteria;
-        factory = new UniversitaFactory(address(this));
+        _grantRole(DEFAULT_ADMIN_ROLE, _segreteria);
+        _grantRole(SEGRETERIA_ROLE, _segreteria);
+        factory = new UniversitaFactory(_segreteria, address(this));
     }
 
-    // Gestione professori
-
-    function aggiungiProfessore(address _professore) external {
-        require(msg.sender == segreteria, "Solo la segreteria puo' eseguire questa operazione");
+    function aggiungiProfessore(address _professore) external onlyRole(SEGRETERIA_ROLE) {
         require(_professore != address(0), "Indirizzo professore non valido");
         require(!professori[_professore], "Professore gia' registrato");
 
@@ -32,42 +32,34 @@ contract Universita {
         listaProfessori.push(_professore);
     }
 
-    function rimuoviProfessore(address _professore) external {
-        require(msg.sender == segreteria, "Solo la segreteria puo' eseguire questa operazione");
+    function rimuoviProfessore(address _professore) external onlyRole(SEGRETERIA_ROLE) {
         require(professori[_professore], "Professore non registrato");
-
         professori[_professore] = false;
     }
 
-    // Gestione Studenti 
-
-    function registraStudente(address _studente) external {
-        require(msg.sender == segreteria, "Solo la segreteria puo' eseguire questa operazione");
+    function registraStudente(address _studente) external onlyRole(SEGRETERIA_ROLE) {
         factory.creaCarriera(_studente);
     }
 
-    // Gestione Corsi
-
-    function creaCorso(string memory _nome, int _cfu, uint _maxStudenti, address _professore) external returns (address) {
-        require(msg.sender == segreteria, "Solo la segreteria puo' eseguire questa operazione");
+    function creaCorso(string memory _nome,int _cfu,uint _maxStudenti, address _professore) external onlyRole(SEGRETERIA_ROLE) returns (address) {
         require(professori[_professore], "Il professore non e' registrato nell'universita'");
 
-        Corso nuovoCorso = new Corso(_nome, _cfu, _maxStudenti, _professore, address(this));
+        address segreteriaReale = getRoleMember(SEGRETERIA_ROLE, 0);
+        Corso nuovoCorso = new Corso(_nome, _cfu, _maxStudenti, _professore, segreteriaReale, address(this));
         listaCorsi.push(address(nuovoCorso));
 
         return address(nuovoCorso);
     }
 
-    function iscriviStudenteACorso(address _studente, address _corso) external {
-        require(msg.sender == segreteria, "Solo la segreteria puo' eseguire questa operazione");
+    function iscriviStudenteACorso(address _studente, address _corso) external onlyRole(SEGRETERIA_ROLE) {
+        address carrieraAddr = factory.getCarriera(_studente);
+        CarrieraStudente carriera = CarrieraStudente(carrieraAddr);
 
-        address carriera = factory.getCarriera(_studente);
-
-        Corso(_corso).iscriviStudente(_studente, carriera);
+        carriera.grantRole(CORSO_ROLE, _corso);
+        Corso(_corso).iscriviStudente(_studente, carrieraAddr);
     }
-    
-    function chiudiIscrizioniCorso(address _corso) external {
-        require(msg.sender == segreteria, "Solo la segreteria puo' eseguire questa operazione");
+
+    function chiudiIscrizioniCorso(address _corso) external onlyRole(SEGRETERIA_ROLE) {
         Corso(_corso).chiudiIscrizioni();
     }
 

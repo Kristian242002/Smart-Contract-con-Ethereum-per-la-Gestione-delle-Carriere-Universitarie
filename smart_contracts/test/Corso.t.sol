@@ -12,61 +12,72 @@ contract CorsoTest is Test {
     CarrieraStudente carrieraStudente2;
 
     address segreteria = address(0x1);
-    address professore  = address(0x2);
-    address studente1   = address(0x3);
-    address studente2   = address(0x4);
-    address estraneo    = address(0x5);
+    address professore = address(0x2);
+    address studente1  = address(0x3);
+    address studente2  = address(0x4);
+    address estraneo   = address(0x5);
+    address universita = address(0x7);
+
+    bytes32 public constant CORSO_ROLE = keccak256("CORSO_ROLE");
 
     function setUp() public {
+        corso = new Corso("Analisi I", 6, 2, professore, segreteria, universita);
+        carrieraStudente1 = new CarrieraStudente(studente1, segreteria, universita);
+        carrieraStudente2 = new CarrieraStudente(studente2, segreteria, universita);
         vm.prank(segreteria);
-        corso = new Corso("Analisi I", 6, 2, professore, segreteria);
-        carrieraStudente1 = new CarrieraStudente(studente1);
-        carrieraStudente2 = new CarrieraStudente(studente2);
+        carrieraStudente1.grantRole(CORSO_ROLE, address(corso));
+        vm.prank(segreteria);
+        carrieraStudente2.grantRole(CORSO_ROLE, address(corso));
     }
 
+    // ─── costruttore ─────────────────────────────────────────────
 
-    // Test sul costruttore
     function test_costruttore() public view {
         assertEq(corso.nome(), "Analisi I");
         assertEq(corso.cfu(), 6);
         assertEq(corso.maxStudenti(), 2);
         assertEq(corso.professore(), professore);
-        assertEq(corso.segreteria(), segreteria);
+        assertTrue(corso.hasRole(keccak256("SEGRETERIA_ROLE"), segreteria));
         assertEq(uint(corso.getStato()), uint(Corso.StatoCorso.APERTO));
     }
 
     function test_costruttore_nomeVuoto() public {
         vm.expectRevert("Il nome del corso non puo' essere vuoto");
-        new Corso("", 6, 2, professore, segreteria);
+        new Corso("", 6, 2, professore, segreteria, universita);
     }
 
     function test_costruttore_cfuNonValidi() public {
         vm.expectRevert("CFU non validi");
-        new Corso("Analisi I", 0, 2, professore, segreteria);
+        new Corso("Analisi I", 0, 2, professore, segreteria, universita);
     }
 
     function test_costruttore_maxStudentiZero() public {
         vm.expectRevert("Il numero massimo di studenti deve essere maggiore di zero");
-        new Corso("Analisi I", 6, 0, professore, segreteria);
+        new Corso("Analisi I", 6, 0, professore, segreteria, universita);
     }
 
     function test_costruttore_professoreNullo() public {
         vm.expectRevert("Indirizzo professore non valido");
-        new Corso("Analisi I", 6, 2, address(0), segreteria);
+        new Corso("Analisi I", 6, 2, address(0), segreteria, universita);
     }
 
     function test_costruttore_segreteriaHulla() public {
         vm.expectRevert("Indirizzo segreteria non valido");
-        new Corso("Analisi I", 6, 2, professore, address(0));
+        new Corso("Analisi I", 6, 2, professore, address(0), universita);
     }
 
-    // Test su iscrivi studente 
+    function test_costruttore_universitaNulla() public {
+        vm.expectRevert("Indirizzo universita non valido");
+        new Corso("Analisi I", 6, 2, professore, segreteria, address(0));
+    }
+
+    // ─── iscriviStudente ─────────────────────────────────────────
 
     function test_iscriviStudente() public {
         vm.prank(segreteria);
         corso.iscriviStudente(studente1, address(carrieraStudente1));
-        assertEq(corso.numeroIscritti(), 1); // verifico che nr. iscritti sia incrementato di 1
-        assertTrue(corso.isStudenteIscritto(studente1)); // verifico che lo studente sia iscritto
+        assertEq(corso.numeroIscritti(), 1);
+        assertTrue(corso.isStudenteIscritto(studente1));
     }
 
     function test_iscriviStudente_dueStudenti() public {
@@ -79,7 +90,7 @@ contract CorsoTest is Test {
 
     function test_iscriviStudente_soloSegreteria() public {
         vm.prank(estraneo);
-        vm.expectRevert("Solo la segreteria puo' eseguire questa operazione");
+        vm.expectRevert();
         corso.iscriviStudente(studente1, address(carrieraStudente1));
     }
 
@@ -105,13 +116,13 @@ contract CorsoTest is Test {
         vm.prank(segreteria);
         corso.iscriviStudente(studente2, address(carrieraStudente2));
         address studente3 = address(0x6);
-        CarrieraStudente carriera3 = new CarrieraStudente(studente3);
+        CarrieraStudente carriera3 = new CarrieraStudente(studente3, segreteria, universita);
         vm.prank(segreteria);
         vm.expectRevert("Numero massimo di studenti raggiunto");
         corso.iscriviStudente(studente3, address(carriera3));
     }
 
-    // Test chiudiIscrizioni
+    // ─── chiudiIscrizioni ────────────────────────────────────────
 
     function test_chiudiIscrizioni() public {
         vm.prank(segreteria);
@@ -121,7 +132,7 @@ contract CorsoTest is Test {
 
     function test_chiudiIscrizioni_soloSegreteria() public {
         vm.prank(estraneo);
-        vm.expectRevert("Solo la segreteria puo' eseguire questa operazione");
+        vm.expectRevert();
         corso.chiudiIscrizioni();
     }
 
@@ -133,7 +144,7 @@ contract CorsoTest is Test {
         corso.chiudiIscrizioni();
     }
 
-    // Test concludi corso
+    // ─── concludiCorso ───────────────────────────────────────────
 
     function test_concludiCorso() public {
         vm.prank(segreteria);
@@ -147,7 +158,7 @@ contract CorsoTest is Test {
         vm.prank(segreteria);
         corso.chiudiIscrizioni();
         vm.prank(estraneo);
-        vm.expectRevert("Solo la segreteria puo' eseguire questa operazione");
+        vm.expectRevert();
         corso.concludiCorso();
     }
 
@@ -157,7 +168,8 @@ contract CorsoTest is Test {
         corso.concludiCorso();
     }
 
-    //Test registra voto
+    // ─── registraVoto ────────────────────────────────────────────
+
     function _setupChiuso() internal {
         vm.prank(segreteria);
         corso.iscriviStudente(studente1, address(carrieraStudente1));
@@ -236,7 +248,8 @@ contract CorsoTest is Test {
         corso.registraVoto(studente1, 29, true);
     }
 
-    // Test get
+    // ─── get ─────────────────────────────────────────────────────
+
     function test_getIscritti() public {
         vm.prank(segreteria);
         corso.iscriviStudente(studente1, address(carrieraStudente1));
