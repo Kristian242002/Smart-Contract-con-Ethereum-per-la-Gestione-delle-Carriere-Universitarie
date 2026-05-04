@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../contracts/CarrieraStudente.sol";
 import "../contracts/Corso.sol";
-import "../contracts/UniversitaFactory.sol";
+import "../contracts/CarrieraStudenteFactory.sol";
 import "../contracts/Universita.sol";
 
 contract UniversitaTest is Test {
@@ -46,7 +46,7 @@ contract UniversitaTest is Test {
 
     function test_aggiungiProfessore_soloSegreteria() public {
         vm.prank(estraneo);
-        vm.expectRevert(); 
+        vm.expectRevert();
         universita.aggiungiProfessore(professore1);
     }
 
@@ -78,7 +78,7 @@ contract UniversitaTest is Test {
         vm.prank(segreteria);
         universita.aggiungiProfessore(professore1);
         vm.prank(estraneo);
-        vm.expectRevert(); 
+        vm.expectRevert();
         universita.rimuoviProfessore(professore1);
     }
 
@@ -92,23 +92,40 @@ contract UniversitaTest is Test {
 
     function test_registraStudente() public {
         vm.prank(segreteria);
-        universita.registraStudente(studente1);
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
         address carriera = universita.getCarrieraStudente(studente1);
         assertTrue(carriera != address(0));
     }
 
     function test_registraStudente_soloSegreteria() public {
         vm.prank(estraneo);
-        vm.expectRevert(); 
-        universita.registraStudente(studente1);
+        vm.expectRevert();
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
     }
 
     function test_registraStudente_giaRegistrato() public {
         vm.prank(segreteria);
-        universita.registraStudente(studente1);
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
         vm.prank(segreteria);
         vm.expectRevert("Carriera gia' esistente per questo studente");
-        universita.registraStudente(studente1);
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
+    }
+
+    function test_registraStudente_tipoLaurea_magistrale() public {
+        vm.prank(segreteria);
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.MAGISTRALE, "Luigi", "Bianchi");
+        address carrieraAddr = universita.getCarrieraStudente(studente1);
+        CarrieraStudente carriera = CarrieraStudente(carrieraAddr);
+        assertEq(uint(carriera.tipoLaurea()), uint(CarrieraStudente.TipoLaurea.MAGISTRALE));
+    }
+
+    function test_registraStudente_nomeCognomeSalvati() public {
+        vm.prank(segreteria);
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
+        address carrieraAddr = universita.getCarrieraStudente(studente1);
+        CarrieraStudente carriera = CarrieraStudente(carrieraAddr);
+        assertEq(carriera.nome(), "Mario");
+        assertEq(carriera.cognome(), "Rossi");
     }
 
     // ─── creaCorso ───────────────────────────────────────────────
@@ -131,7 +148,7 @@ contract UniversitaTest is Test {
         vm.prank(segreteria);
         universita.aggiungiProfessore(professore1);
         vm.prank(estraneo);
-        vm.expectRevert(); 
+        vm.expectRevert();
         universita.creaCorso("Matematica", 6, 30, professore1);
     }
 
@@ -147,7 +164,7 @@ contract UniversitaTest is Test {
         vm.prank(segreteria);
         universita.aggiungiProfessore(professore1);
         vm.prank(segreteria);
-        universita.registraStudente(studente1);
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
         vm.prank(segreteria);
         address corsoAddr = universita.creaCorso("Matematica", 6, 30, professore1);
         return corsoAddr;
@@ -164,7 +181,7 @@ contract UniversitaTest is Test {
     function test_iscriviStudenteACorso_soloSegreteria() public {
         address corsoAddr = _setupBase();
         vm.prank(estraneo);
-        vm.expectRevert(); 
+        vm.expectRevert();
         universita.iscriviStudenteACorso(studente1, corsoAddr);
     }
 
@@ -201,11 +218,30 @@ contract UniversitaTest is Test {
 
     function test_getCarrieraStudente() public {
         vm.prank(segreteria);
-        universita.registraStudente(studente1);
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
         address carriera = universita.getCarrieraStudente(studente1);
         assertTrue(carriera != address(0));
         CarrieraStudente cs = CarrieraStudente(carriera);
         assertEq(cs.studente(), studente1);
+    }
+
+    // ─── getQRCode ───────────────────────────────────────────────
+
+    function test_getQRCode() public {
+        vm.prank(segreteria);
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
+        CarrieraStudente.StudenteInfo memory info = universita.getQRCode(studente1);
+        assertEq(info.wallet, studente1);
+        assertEq(info.nome, "Mario");
+        assertEq(info.cognome, "Rossi");
+        assertEq(uint(info.tipoLaurea), uint(CarrieraStudente.TipoLaurea.TRIENNALE));
+        assertEq(info.cfuTotali, 0);
+        assertEq(info.laureato, false);
+    }
+
+    function test_getQRCode_studenteInesistente() public {
+        vm.expectRevert("Nessuna carriera trovata per questo studente");
+        universita.getQRCode(studente1);
     }
 
     // ─── flusso completo ─────────────────────────────────────────
@@ -217,7 +253,7 @@ contract UniversitaTest is Test {
 
         // registra studente
         vm.prank(segreteria);
-        universita.registraStudente(studente1);
+        universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
 
         // crea corso
         vm.prank(segreteria);
@@ -244,5 +280,49 @@ contract UniversitaTest is Test {
         CarrieraStudente.Esame memory esame = carriera.getEsame(0);
         assertEq(esame.voto, 18);
         assertEq(esame.nome, "AnalisiI");
+
+        // verifica QR code
+        CarrieraStudente.StudenteInfo memory info = universita.getQRCode(studente1);
+        assertEq(info.nome, "Mario");
+        assertEq(info.cognome, "Rossi");
+        assertEq(uint(info.tipoLaurea), uint(CarrieraStudente.TipoLaurea.TRIENNALE));
+    }
+    // ─── registraVoto ────────────────────────────────────────────
+
+    function test_registraVoto_dalProfessore() public {
+        address corsoAddr = _setupBase();
+        vm.prank(segreteria);
+        universita.iscriviStudenteACorso(studente1, corsoAddr);
+        vm.prank(segreteria);
+        universita.chiudiIscrizioniCorso(corsoAddr);
+        vm.prank(professore1);
+        universita.registraVoto(corsoAddr, studente1, 28, false);
+        address carrieraAddr = universita.getCarrieraStudente(studente1);
+        CarrieraStudente carriera = CarrieraStudente(carrieraAddr);
+        assertEq(carriera.getNumeroEsami(), 1);
+    }
+
+    function test_registraVoto_dallaSegreteria() public {
+        address corsoAddr = _setupBase();
+        vm.prank(segreteria);
+        universita.iscriviStudenteACorso(studente1, corsoAddr);
+        vm.prank(segreteria);
+        universita.chiudiIscrizioniCorso(corsoAddr);
+        vm.prank(segreteria);
+        universita.registraVoto(corsoAddr, studente1, 25, false);
+        address carrieraAddr = universita.getCarrieraStudente(studente1);
+        CarrieraStudente carriera = CarrieraStudente(carrieraAddr);
+        assertEq(carriera.getNumeroEsami(), 1);
+    }
+
+    function test_registraVoto_estraneoError() public {
+        address corsoAddr = _setupBase();
+        vm.prank(segreteria);
+        universita.iscriviStudenteACorso(studente1, corsoAddr);
+        vm.prank(segreteria);
+        universita.chiudiIscrizioniCorso(corsoAddr);
+        vm.prank(estraneo);
+        vm.expectRevert("Solo il professore o la segreteria possono eseguire questa operazione");
+        universita.registraVoto(corsoAddr, studente1, 28, false);
     }
 }

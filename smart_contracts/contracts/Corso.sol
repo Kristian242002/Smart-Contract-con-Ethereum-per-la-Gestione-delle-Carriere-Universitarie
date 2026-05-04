@@ -6,13 +6,9 @@ import "./CarrieraStudente.sol";
 
 contract Corso is AccessControl {
 
-    bytes32 public constant SEGRETERIA_ROLE = keccak256("SEGRETERIA_ROLE");
-    bytes32 public constant PROFESSORE_ROLE = keccak256("PROFESSORE_ROLE");
-
     enum StatoCorso {
         APERTO,
-        CHIUSO,
-        CONCLUSO
+        CHIUSO
     }
 
     string public nome;
@@ -25,10 +21,13 @@ contract Corso is AccessControl {
 
     StatoCorso public stato;
 
+    bytes32 public SEGRETERIA_ROLE;
+    bytes32 public PROFESSORE_ROLE;
+
     mapping(address => address) public carriere;
     address[] public iscritti;
 
-    constructor(string memory _nome,int _cfu,uint _maxStudenti,address _professore,address _segreteria,address _universita) {
+    constructor(string memory _nome,int _cfu,uint _maxStudenti,address _professore, address _segreteria,address _universita,bytes32 _segreteriaRole,bytes32 _professoreRole) {
         require(bytes(_nome).length > 0, "Il nome del corso non puo' essere vuoto");
         require(_cfu >= 1 && _cfu <= 20, "CFU non validi");
         require(_maxStudenti > 0, "Il numero massimo di studenti deve essere maggiore di zero");
@@ -43,6 +42,9 @@ contract Corso is AccessControl {
         segreteria = _segreteria;
         stato = StatoCorso.APERTO;
 
+        SEGRETERIA_ROLE = _segreteriaRole;
+        PROFESSORE_ROLE = _professoreRole;
+
         _grantRole(DEFAULT_ADMIN_ROLE, _segreteria);
         _grantRole(DEFAULT_ADMIN_ROLE, _universita);
         _grantRole(SEGRETERIA_ROLE, _segreteria);
@@ -53,11 +55,6 @@ contract Corso is AccessControl {
     function chiudiIscrizioni() external onlyRole(SEGRETERIA_ROLE) {
         require(stato == StatoCorso.APERTO, "Operazione non consentita nello stato corrente");
         stato = StatoCorso.CHIUSO;
-    }
-
-    function concludiCorso() external onlyRole(SEGRETERIA_ROLE) {
-        require(stato == StatoCorso.CHIUSO, "Operazione non consentita nello stato corrente");
-        stato = StatoCorso.CONCLUSO;
     }
 
     function iscriviStudente(address _studente, address _carriera) external onlyRole(SEGRETERIA_ROLE) {
@@ -73,18 +70,16 @@ contract Corso is AccessControl {
     }
 
     function registraVoto(address _studente, int _voto, bool _lode) external {
-        require(hasRole(SEGRETERIA_ROLE, msg.sender) || hasRole(PROFESSORE_ROLE, msg.sender),"Solo il professore o la segreteria possono eseguire questa operazione");
+        require(
+            hasRole(SEGRETERIA_ROLE, msg.sender) || hasRole(PROFESSORE_ROLE, msg.sender),
+            "Solo il professore o la segreteria possono eseguire questa operazione"
+        );
         require(stato == StatoCorso.CHIUSO, "Operazione non consentita nello stato corrente");
         require(carriere[_studente] != address(0), "Studente non iscritto al corso");
         require(_voto >= 0 && _voto <= 30, "Voto non valido: deve essere tra 0 e 30");
         require(!(_lode && _voto != 30), "La lode e' consentita solo con voto 30");
 
-        int votoFinale;
-        if (_lode) {
-            votoFinale = 31;
-        } else {
-            votoFinale = _voto;
-        }
+        int votoFinale = _lode ? int(31) : _voto;
 
         CarrieraStudente carriera = CarrieraStudente(carriere[_studente]);
         carriera.registraEsame(nome, votoFinale, cfu);

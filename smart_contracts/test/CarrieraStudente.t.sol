@@ -14,9 +14,10 @@ contract CarrieraStudenteTest is Test {
     address corso = makeAddr("corso");
 
     bytes32 public constant CORSO_ROLE = keccak256("CORSO_ROLE");
+    bytes32 public constant STUDENTE_ROLE = keccak256("STUDENTE_ROLE");
 
     function setUp() public {
-        carriera = new CarrieraStudente(studente1, segreteria, universita);
+        carriera = new CarrieraStudente(studente1, segreteria, universita, STUDENTE_ROLE, CORSO_ROLE, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
         vm.prank(segreteria);
         carriera.grantRole(CORSO_ROLE, corso);
     }
@@ -193,24 +194,96 @@ contract CarrieraStudenteTest is Test {
 
     // ─── isLaureato ───────────────────────────────────────────────
 
-    function test_IsLaureato() public {
+    function test_IsLaureato_triennale() public {
+        // serve 180 CFU, ne ha solo 6 → non laureato
         vm.prank(corso);
         carriera.registraEsame("Analisi I", 28, 6);
-        vm.prank(corso);
-        carriera.registraEsame("Fisica I", 25, 6);
         vm.prank(studente1);
         carriera.accettaEsame(0);
-        vm.prank(studente1);
-        carriera.accettaEsame(1);
-        assertEq(carriera.isLaureato(12), true);
+        assertEq(carriera.isLaureato(), false);
     }
 
-    function test_NonIsLaureato() public {
+    function test_IsLaureato_magistrale() public {
+        CarrieraStudente carrieraMag = new CarrieraStudente(studente1, segreteria, universita, STUDENTE_ROLE, CORSO_ROLE, CarrieraStudente.TipoLaurea.MAGISTRALE, "Mario", "Rossi");
+        vm.prank(segreteria);
+        carrieraMag.grantRole(CORSO_ROLE, corso);
+        // serve 120 CFU, ne ha solo 6 → non laureato
         vm.prank(corso);
-        carriera.registraEsame("Analisi I", 28, 6);
+        carrieraMag.registraEsame("Analisi I", 28, 6);
         vm.prank(studente1);
-        carriera.accettaEsame(0);
-        assertEq(carriera.isLaureato(180), false);
+        carrieraMag.accettaEsame(0);
+        assertEq(carrieraMag.isLaureato(), false);
+    }
+
+    function test_TipoLaurea_triennale() public view {
+        assertEq(uint(carriera.tipoLaurea()), uint(CarrieraStudente.TipoLaurea.TRIENNALE));
+    }
+
+    function test_TipoLaurea_magistrale() public {
+        CarrieraStudente carrieraMag = new CarrieraStudente(studente1, segreteria, universita, STUDENTE_ROLE, CORSO_ROLE, CarrieraStudente.TipoLaurea.MAGISTRALE, "Mario", "Rossi");
+        assertEq(uint(carrieraMag.tipoLaurea()), uint(CarrieraStudente.TipoLaurea.MAGISTRALE));
+    }
+
+    // ─── nome e cognome ───────────────────────────────────────────
+
+    function test_NomeCognomeIniziali() public view {
+        assertEq(carriera.nome(), "Mario");
+        assertEq(carriera.cognome(), "Rossi");
+    }
+
+    function test_AggiornaNome_daStudente() public {
+        vm.prank(studente1);
+        carriera.aggiornaNome("Luigi");
+        assertEq(carriera.nome(), "Luigi");
+    }
+
+    function test_AggiornaCognome_daStudente() public {
+        vm.prank(studente1);
+        carriera.aggiornaCognome("Bianchi");
+        assertEq(carriera.cognome(), "Bianchi");
+    }
+
+    function test_AggiornaNome_daSegreteria() public {
+        vm.prank(segreteria);
+        carriera.aggiornaNome("Giuseppe");
+        assertEq(carriera.nome(), "Giuseppe");
+    }
+
+    function test_AggiornaNome_nomeVuotoError() public {
+        vm.prank(studente1);
+        vm.expectRevert("Il nome non puo' essere vuoto");
+        carriera.aggiornaNome("");
+    }
+
+    function test_AggiornaNome_nonAutorizzatoError() public {
+        vm.prank(studente2);
+        vm.expectRevert("Non autorizzato");
+        carriera.aggiornaNome("Hacker");
+    }
+
+    // ─── getStudenteInfo ─────────────────────────────────────────
+
+    function test_GetStudenteInfo() public view {
+        CarrieraStudente.StudenteInfo memory info = carriera.getStudenteInfo();
+        assertEq(info.wallet, studente1);
+        assertEq(info.nome, "Mario");
+        assertEq(info.cognome, "Rossi");
+        assertEq(uint(info.tipoLaurea), uint(CarrieraStudente.TipoLaurea.TRIENNALE));
+        assertEq(info.cfuTotali, 0);
+        assertEq(info.laureato, false);
+    }
+    function test_GetStudenteInfo_magistrale() public {
+        CarrieraStudente carrieraMag = new CarrieraStudente(studente1, segreteria, universita, STUDENTE_ROLE, CORSO_ROLE, CarrieraStudente.TipoLaurea.MAGISTRALE, "Mario", "Rossi");
+        vm.prank(segreteria);
+        carrieraMag.grantRole(CORSO_ROLE, corso);
+
+        CarrieraStudente.StudenteInfo memory info = carrieraMag.getStudenteInfo();
+        assertEq(info.wallet, studente1);
+        assertEq(info.nome, "Mario");
+        assertEq(info.cognome, "Rossi");
+        assertEq(uint(info.tipoLaurea), uint(CarrieraStudente.TipoLaurea.MAGISTRALE));
+        assertEq(info.cfuTotali, 0);
+        assertEq(info.laureato, false);
     }
 
     // ─── AccessControl ───────────────────────────────────────────

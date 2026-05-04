@@ -18,12 +18,15 @@ contract CorsoTest is Test {
     address estraneo   = address(0x5);
     address universita = address(0x7);
 
-    bytes32 public constant CORSO_ROLE = keccak256("CORSO_ROLE");
+    bytes32 public constant SEGRETERIA_ROLE = keccak256("SEGRETERIA_ROLE");
+    bytes32 public constant PROFESSORE_ROLE = keccak256("PROFESSORE_ROLE");
+    bytes32 public constant STUDENTE_ROLE   = keccak256("STUDENTE_ROLE");
+    bytes32 public constant CORSO_ROLE      = keccak256("CORSO_ROLE");
 
     function setUp() public {
-        corso = new Corso("Analisi I", 6, 2, professore, segreteria, universita);
-        carrieraStudente1 = new CarrieraStudente(studente1, segreteria, universita);
-        carrieraStudente2 = new CarrieraStudente(studente2, segreteria, universita);
+        corso = new Corso("Analisi I", 6, 2, professore, segreteria, universita, SEGRETERIA_ROLE, PROFESSORE_ROLE);
+        carrieraStudente1 = new CarrieraStudente(studente1, segreteria, universita, STUDENTE_ROLE, CORSO_ROLE, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
+        carrieraStudente2 = new CarrieraStudente(studente2, segreteria, universita, STUDENTE_ROLE, CORSO_ROLE, CarrieraStudente.TipoLaurea.TRIENNALE, "Luigi", "Bianchi");
         vm.prank(segreteria);
         carrieraStudente1.grantRole(CORSO_ROLE, address(corso));
         vm.prank(segreteria);
@@ -37,38 +40,38 @@ contract CorsoTest is Test {
         assertEq(corso.cfu(), 6);
         assertEq(corso.maxStudenti(), 2);
         assertEq(corso.professore(), professore);
-        assertTrue(corso.hasRole(keccak256("SEGRETERIA_ROLE"), segreteria));
+        assertTrue(corso.hasRole(SEGRETERIA_ROLE, segreteria));
         assertEq(uint(corso.getStato()), uint(Corso.StatoCorso.APERTO));
     }
 
     function test_costruttore_nomeVuoto() public {
         vm.expectRevert("Il nome del corso non puo' essere vuoto");
-        new Corso("", 6, 2, professore, segreteria, universita);
+        new Corso("", 6, 2, professore, segreteria, universita, SEGRETERIA_ROLE, PROFESSORE_ROLE);
     }
 
     function test_costruttore_cfuNonValidi() public {
         vm.expectRevert("CFU non validi");
-        new Corso("Analisi I", 0, 2, professore, segreteria, universita);
+        new Corso("Analisi I", 0, 2, professore, segreteria, universita, SEGRETERIA_ROLE, PROFESSORE_ROLE);
     }
 
     function test_costruttore_maxStudentiZero() public {
         vm.expectRevert("Il numero massimo di studenti deve essere maggiore di zero");
-        new Corso("Analisi I", 6, 0, professore, segreteria, universita);
+        new Corso("Analisi I", 6, 0, professore, segreteria, universita, SEGRETERIA_ROLE, PROFESSORE_ROLE);
     }
 
     function test_costruttore_professoreNullo() public {
         vm.expectRevert("Indirizzo professore non valido");
-        new Corso("Analisi I", 6, 2, address(0), segreteria, universita);
+        new Corso("Analisi I", 6, 2, address(0), segreteria, universita, SEGRETERIA_ROLE, PROFESSORE_ROLE);
     }
 
     function test_costruttore_segreteriaHulla() public {
         vm.expectRevert("Indirizzo segreteria non valido");
-        new Corso("Analisi I", 6, 2, professore, address(0), universita);
+        new Corso("Analisi I", 6, 2, professore, address(0), universita, SEGRETERIA_ROLE, PROFESSORE_ROLE);
     }
 
     function test_costruttore_universitaNulla() public {
         vm.expectRevert("Indirizzo universita non valido");
-        new Corso("Analisi I", 6, 2, professore, segreteria, address(0));
+        new Corso("Analisi I", 6, 2, professore, segreteria, address(0), SEGRETERIA_ROLE, PROFESSORE_ROLE);
     }
 
     // ─── iscriviStudente ─────────────────────────────────────────
@@ -116,7 +119,7 @@ contract CorsoTest is Test {
         vm.prank(segreteria);
         corso.iscriviStudente(studente2, address(carrieraStudente2));
         address studente3 = address(0x6);
-        CarrieraStudente carriera3 = new CarrieraStudente(studente3, segreteria, universita);
+        CarrieraStudente carriera3 = new CarrieraStudente(studente3, segreteria, universita, STUDENTE_ROLE, CORSO_ROLE, CarrieraStudente.TipoLaurea.TRIENNALE, "Anna", "Verdi");
         vm.prank(segreteria);
         vm.expectRevert("Numero massimo di studenti raggiunto");
         corso.iscriviStudente(studente3, address(carriera3));
@@ -142,30 +145,6 @@ contract CorsoTest is Test {
         vm.prank(segreteria);
         vm.expectRevert("Operazione non consentita nello stato corrente");
         corso.chiudiIscrizioni();
-    }
-
-    // ─── concludiCorso ───────────────────────────────────────────
-
-    function test_concludiCorso() public {
-        vm.prank(segreteria);
-        corso.chiudiIscrizioni();
-        vm.prank(segreteria);
-        corso.concludiCorso();
-        assertEq(uint(corso.getStato()), uint(Corso.StatoCorso.CONCLUSO));
-    }
-
-    function test_concludiCorso_soloSegreteria() public {
-        vm.prank(segreteria);
-        corso.chiudiIscrizioni();
-        vm.prank(estraneo);
-        vm.expectRevert();
-        corso.concludiCorso();
-    }
-
-    function test_concludiCorso_soloSeChiuso() public {
-        vm.prank(segreteria);
-        vm.expectRevert("Operazione non consentita nello stato corrente");
-        corso.concludiCorso();
     }
 
     // ─── registraVoto ────────────────────────────────────────────

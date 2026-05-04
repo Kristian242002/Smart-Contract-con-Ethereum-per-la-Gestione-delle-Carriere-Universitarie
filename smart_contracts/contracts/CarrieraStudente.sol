@@ -5,14 +5,16 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract CarrieraStudente is AccessControl {
 
-    bytes32 public constant STUDENTE_ROLE = keccak256("STUDENTE_ROLE");
-    bytes32 public constant CORSO_ROLE = keccak256("CORSO_ROLE");
-
     enum StatoEsame {
         IN_ATTESA,
         ACCETTATO,
         RIFIUTATO,
         INSUFFICIENTE
+    }
+
+    enum TipoLaurea {
+        TRIENNALE,
+        MAGISTRALE
     }
 
     struct Esame {
@@ -22,19 +24,55 @@ contract CarrieraStudente is AccessControl {
         StatoEsame stato;
     }
 
+    struct StudenteInfo {
+        address wallet;
+        string nome;
+        string cognome;
+        TipoLaurea tipoLaurea;
+        int cfuTotali;
+        bool laureato;
+        Esame[] esami;
+    }
+
     address public studente;
+    string public nome;
+    string public cognome;
+    TipoLaurea public tipoLaurea;
     Esame[] public esami;
 
-    constructor(address _studente, address _segreteria, address _universita) {
+    bytes32 public STUDENTE_ROLE;
+    bytes32 public CORSO_ROLE;
+
+    constructor( address _studente,address _segreteria,address _universita,bytes32 _studenteRole,bytes32 _corsoRole,TipoLaurea _tipoLaurea,string memory _nome,string memory _cognome) {
         require(_studente != address(0), "Indirizzo studente non valido");
         require(_segreteria != address(0), "Indirizzo segreteria non valido");
         require(_universita != address(0), "Indirizzo universita non valido");
+        require(bytes(_nome).length > 0, "Il nome non puo' essere vuoto");
+        require(bytes(_cognome).length > 0, "Il cognome non puo' essere vuoto");
 
         studente = _studente;
+        nome = _nome;
+        cognome = _cognome;
+        tipoLaurea = _tipoLaurea;
+        STUDENTE_ROLE = _studenteRole;
+        CORSO_ROLE = _corsoRole;
 
         _grantRole(DEFAULT_ADMIN_ROLE, _segreteria);
         _grantRole(DEFAULT_ADMIN_ROLE, _universita);
         _grantRole(STUDENTE_ROLE, _studente);
+    }
+
+    function aggiornaNome(string memory _nome) external {
+        require(
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(STUDENTE_ROLE, msg.sender),"Non autorizzato");
+        require(bytes(_nome).length > 0, "Il nome non puo' essere vuoto");
+        nome = _nome;
+    }
+
+    function aggiornaCognome(string memory _cognome) external {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(STUDENTE_ROLE, msg.sender),"Non autorizzato");
+        require(bytes(_cognome).length > 0, "Il cognome non puo' essere vuoto");
+        cognome = _cognome;
     }
 
     function registraEsame(string calldata _nome, int _voto, int _cfu) external onlyRole(CORSO_ROLE) returns (uint esameId) {
@@ -63,7 +101,6 @@ contract CarrieraStudente is AccessControl {
         require(esami[_esameId].stato != StatoEsame.INSUFFICIENTE, "Esame insufficiente, non accettabile");
         require(esami[_esameId].stato != StatoEsame.ACCETTATO, "Esame gia' accettato");
         require(esami[_esameId].stato != StatoEsame.RIFIUTATO, "Esame gia' rifiutato");
-
         esami[_esameId].stato = StatoEsame.ACCETTATO;
     }
 
@@ -72,7 +109,6 @@ contract CarrieraStudente is AccessControl {
         require(esami[_esameId].stato != StatoEsame.INSUFFICIENTE, "Esame insufficiente, viene ignorato automaticamente");
         require(esami[_esameId].stato != StatoEsame.ACCETTATO, "Esame gia' accettato");
         require(esami[_esameId].stato != StatoEsame.RIFIUTATO, "Esame gia' rifiutato");
-
         esami[_esameId].stato = StatoEsame.RIFIUTATO;
     }
 
@@ -93,7 +129,29 @@ contract CarrieraStudente is AccessControl {
         return esami[_esameId];
     }
 
-    function isLaureato(int _cfuNecessari) external view returns (bool) {
-        return getCFUTotali() >= _cfuNecessari;
+    function isLaureato() external view returns (bool) {
+        int cfuNecessari = 180;
+        if (tipoLaurea == TipoLaurea.MAGISTRALE) {
+            cfuNecessari = 120;
+        }
+        return getCFUTotali() >= cfuNecessari;
+    }
+
+    function getStudenteInfo() external view returns (StudenteInfo memory) {
+        StudenteInfo memory info;
+        info.wallet = studente;
+        info.nome = nome;
+        info.cognome = cognome;
+        info.tipoLaurea = tipoLaurea;
+        info.cfuTotali = getCFUTotali();
+
+        int cfuNecessari = 180;
+        if (tipoLaurea == TipoLaurea.MAGISTRALE) {
+            cfuNecessari = 120;
+        }
+        info.laureato = getCFUTotali() >= cfuNecessari;
+        info.esami = esami;
+
+        return info;
     }
 }
