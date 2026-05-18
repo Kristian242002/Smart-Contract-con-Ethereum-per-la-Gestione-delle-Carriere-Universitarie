@@ -66,8 +66,7 @@ contract CarrieraStudente is AccessControl {
 
     // Accetta sia lo studente diretto, sia Universita che agisce per suo conto
     modifier soloStudente(address _studente) {
-        require(
-            hasRole(STUDENTE_ROLE, msg.sender) ||(hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && hasRole(STUDENTE_ROLE, _studente)),"Non autorizzato");_;
+        require(hasRole(STUDENTE_ROLE, msg.sender) ||(hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && hasRole(STUDENTE_ROLE, _studente)),"Non autorizzato");_;
     }
 
     function aggiornaNome(string memory _nome, address _studente) external soloStudente(_studente) {

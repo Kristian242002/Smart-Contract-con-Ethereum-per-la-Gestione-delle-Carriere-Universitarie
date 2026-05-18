@@ -57,10 +57,7 @@ contract Universita is AccessControl {
 
     function creaCorso(string memory _nome,int _cfu,uint _maxStudenti,address _professore) external onlyRole(SEGRETERIA_ROLE) returns (address) {
         require(professori[_professore], "Il professore non e' registrato nell'universita'");
-        Corso nuovoCorso = new Corso(
-            _nome, _cfu, _maxStudenti, _professore,
-            msg.sender, address(this), SEGRETERIA_ROLE, PROFESSORE_ROLE
-        );
+        Corso nuovoCorso = new Corso( _nome, _cfu, _maxStudenti, _professore, msg.sender, address(this), SEGRETERIA_ROLE, PROFESSORE_ROLE);
         listaCorsi.push(address(nuovoCorso));
         return address(nuovoCorso);
     }
