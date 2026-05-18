@@ -45,7 +45,7 @@ contract CarrieraStudente is AccessControl {
 
     int public cfuAccettati;
 
-    constructor( address _studente,address _segreteria,address _universita,bytes32 _studenteRole,bytes32 _corsoRole,TipoLaurea _tipoLaurea,string memory _nome,string memory _cognome) {
+    constructor(address _studente,address _segreteria,address _universita,bytes32 _studenteRole,bytes32 _corsoRole,TipoLaurea _tipoLaurea,string memory _nome,string memory _cognome) {
         require(_studente != address(0), "Indirizzo studente non valido");
         require(_segreteria != address(0), "Indirizzo segreteria non valido");
         require(_universita != address(0), "Indirizzo universita non valido");
@@ -64,15 +64,18 @@ contract CarrieraStudente is AccessControl {
         _grantRole(STUDENTE_ROLE, _studente);
     }
 
-    function aggiornaNome(string memory _nome) external {
+    // Accetta sia lo studente diretto, sia Universita che agisce per suo conto
+    modifier soloStudente(address _studente) {
         require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(STUDENTE_ROLE, msg.sender),"Non autorizzato");
+            hasRole(STUDENTE_ROLE, msg.sender) ||(hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && hasRole(STUDENTE_ROLE, _studente)),"Non autorizzato");_;
+    }
+
+    function aggiornaNome(string memory _nome, address _studente) external soloStudente(_studente) {
         require(bytes(_nome).length > 0, "Il nome non puo' essere vuoto");
         nome = _nome;
     }
 
-    function aggiornaCognome(string memory _cognome) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender) || hasRole(STUDENTE_ROLE, msg.sender),"Non autorizzato");
+    function aggiornaCognome(string memory _cognome, address _studente) external soloStudente(_studente) {
         require(bytes(_cognome).length > 0, "Il cognome non puo' essere vuoto");
         cognome = _cognome;
     }
@@ -98,7 +101,7 @@ contract CarrieraStudente is AccessControl {
         }));
     }
 
-    function accettaEsame(uint _esameId) external onlyRole(STUDENTE_ROLE) {
+    function accettaEsame(uint _esameId, address _studente) external soloStudente(_studente) {
         require(_esameId < esami.length, "Esame inesistente");
         require(esami[_esameId].stato != StatoEsame.INSUFFICIENTE, "Esame insufficiente, non accettabile");
         require(esami[_esameId].stato != StatoEsame.ACCETTATO, "Esame gia' accettato");
@@ -107,7 +110,7 @@ contract CarrieraStudente is AccessControl {
         cfuAccettati += esami[_esameId].cfu;
     }
 
-    function rifiutaEsame(uint _esameId) external onlyRole(STUDENTE_ROLE) {
+    function rifiutaEsame(uint _esameId, address _studente) external soloStudente(_studente) {
         require(_esameId < esami.length, "Esame inesistente");
         require(esami[_esameId].stato != StatoEsame.INSUFFICIENTE, "Esame insufficiente, viene ignorato automaticamente");
         require(esami[_esameId].stato != StatoEsame.ACCETTATO, "Esame gia' accettato");
@@ -116,7 +119,7 @@ contract CarrieraStudente is AccessControl {
     }
 
     function getCFUTotali() public view returns (int) {
-        return cfuAccettati; 
+        return cfuAccettati;
     }
 
     function getNumeroEsami() external view returns (uint) {

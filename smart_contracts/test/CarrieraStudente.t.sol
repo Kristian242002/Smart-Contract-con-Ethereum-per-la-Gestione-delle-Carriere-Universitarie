@@ -96,10 +96,8 @@ contract CarrieraStudenteTest is Test {
         carriera.registraEsame("Analisi I", 10, 6);
         vm.prank(corso);
         carriera.registraEsame("Fisica I", 25, 6);
-
         CarrieraStudente.Esame memory primo = carriera.getEsame(0);
         CarrieraStudente.Esame memory secondo = carriera.getEsame(1);
-
         assertEq(uint(primo.stato), uint(CarrieraStudente.StatoEsame.INSUFFICIENTE));
         assertEq(uint(secondo.stato), uint(CarrieraStudente.StatoEsame.IN_ATTESA));
     }
@@ -110,7 +108,7 @@ contract CarrieraStudenteTest is Test {
         vm.prank(corso);
         carriera.registraEsame("Analisi I", 28, 6);
         vm.prank(studente1);
-        carriera.accettaEsame(0);
+        carriera.accettaEsame(0, studente1);
         CarrieraStudente.Esame memory esame = carriera.getEsame(0);
         assertEq(uint(esame.stato), uint(CarrieraStudente.StatoEsame.ACCETTATO));
     }
@@ -120,7 +118,7 @@ contract CarrieraStudenteTest is Test {
         carriera.registraEsame("Analisi I", 28, 6);
         vm.prank(studente2);
         vm.expectRevert();
-        carriera.accettaEsame(0);
+        carriera.accettaEsame(0, studente2);
     }
 
     function test_AccettaEsameInsuffError() public {
@@ -128,17 +126,26 @@ contract CarrieraStudenteTest is Test {
         carriera.registraEsame("Fisica I", 10, 6);
         vm.prank(studente1);
         vm.expectRevert();
-        carriera.accettaEsame(0);
+        carriera.accettaEsame(0, studente1);
     }
 
     function test_AccettaEsameGiaAccettatoError() public {
         vm.prank(corso);
         carriera.registraEsame("Analisi I", 28, 6);
         vm.prank(studente1);
-        carriera.accettaEsame(0);
+        carriera.accettaEsame(0, studente1);
         vm.prank(studente1);
         vm.expectRevert();
-        carriera.accettaEsame(0);
+        carriera.accettaEsame(0, studente1);
+    }
+
+    function test_UniversitaAccettaPerStudente() public {
+        vm.prank(corso);
+        carriera.registraEsame("Analisi I", 28, 6);
+        vm.prank(universita);
+        carriera.accettaEsame(0, studente1);
+        CarrieraStudente.Esame memory esame = carriera.getEsame(0);
+        assertEq(uint(esame.stato), uint(CarrieraStudente.StatoEsame.ACCETTATO));
     }
 
     // ─── rifiutaEsame ────────────────────────────────────────────
@@ -147,7 +154,7 @@ contract CarrieraStudenteTest is Test {
         vm.prank(corso);
         carriera.registraEsame("Analisi I", 28, 6);
         vm.prank(studente1);
-        carriera.rifiutaEsame(0);
+        carriera.rifiutaEsame(0, studente1);
         CarrieraStudente.Esame memory esame = carriera.getEsame(0);
         assertEq(uint(esame.stato), uint(CarrieraStudente.StatoEsame.RIFIUTATO));
     }
@@ -157,17 +164,26 @@ contract CarrieraStudenteTest is Test {
         carriera.registraEsame("Analisi I", 28, 6);
         vm.prank(studente2);
         vm.expectRevert();
-        carriera.rifiutaEsame(0);
+        carriera.rifiutaEsame(0, studente2);
     }
 
     function test_RifiutaEsameGiaRifiutatoError() public {
         vm.prank(corso);
         carriera.registraEsame("Analisi I", 28, 6);
         vm.prank(studente1);
-        carriera.rifiutaEsame(0);
+        carriera.rifiutaEsame(0, studente1);
         vm.prank(studente1);
         vm.expectRevert();
-        carriera.rifiutaEsame(0);
+        carriera.rifiutaEsame(0, studente1);
+    }
+
+    function test_UniversitaRifiutaPerStudente() public {
+        vm.prank(corso);
+        carriera.registraEsame("Analisi I", 28, 6);
+        vm.prank(universita);
+        carriera.rifiutaEsame(0, studente1);
+        CarrieraStudente.Esame memory esame = carriera.getEsame(0);
+        assertEq(uint(esame.stato), uint(CarrieraStudente.StatoEsame.RIFIUTATO));
     }
 
     // ─── CFU totali ───────────────────────────────────────────────
@@ -186,20 +202,19 @@ contract CarrieraStudenteTest is Test {
         vm.prank(corso);
         carriera.registraEsame("Basi di Dati", 10, 12);
         vm.prank(studente1);
-        carriera.accettaEsame(0);
+        carriera.accettaEsame(0, studente1);
         vm.prank(studente1);
-        carriera.accettaEsame(1);
+        carriera.accettaEsame(1, studente1);
         assertEq(carriera.getCFUTotali(), 12);
     }
 
     // ─── isLaureato ───────────────────────────────────────────────
 
     function test_IsLaureato_triennale() public {
-        // serve 180 CFU, ne ha solo 6 → non laureato
         vm.prank(corso);
         carriera.registraEsame("Analisi I", 28, 6);
         vm.prank(studente1);
-        carriera.accettaEsame(0);
+        carriera.accettaEsame(0, studente1);
         assertEq(carriera.isLaureato(), false);
     }
 
@@ -207,11 +222,10 @@ contract CarrieraStudenteTest is Test {
         CarrieraStudente carrieraMag = new CarrieraStudente(studente1, segreteria, universita, STUDENTE_ROLE, CORSO_ROLE, CarrieraStudente.TipoLaurea.MAGISTRALE, "Mario", "Rossi");
         vm.prank(segreteria);
         carrieraMag.grantRole(CORSO_ROLE, corso);
-        // serve 120 CFU, ne ha solo 6 → non laureato
         vm.prank(corso);
         carrieraMag.registraEsame("Analisi I", 28, 6);
         vm.prank(studente1);
-        carrieraMag.accettaEsame(0);
+        carrieraMag.accettaEsame(0, studente1);
         assertEq(carrieraMag.isLaureato(), false);
     }
 
@@ -233,32 +247,32 @@ contract CarrieraStudenteTest is Test {
 
     function test_AggiornaNome_daStudente() public {
         vm.prank(studente1);
-        carriera.aggiornaNome("Luigi");
+        carriera.aggiornaNome("Luigi", studente1);
         assertEq(carriera.nome(), "Luigi");
     }
 
     function test_AggiornaCognome_daStudente() public {
         vm.prank(studente1);
-        carriera.aggiornaCognome("Bianchi");
+        carriera.aggiornaCognome("Bianchi", studente1);
         assertEq(carriera.cognome(), "Bianchi");
     }
 
     function test_AggiornaNome_daSegreteria() public {
         vm.prank(segreteria);
-        carriera.aggiornaNome("Giuseppe");
+        carriera.aggiornaNome("Giuseppe", studente1);
         assertEq(carriera.nome(), "Giuseppe");
     }
 
     function test_AggiornaNome_nomeVuotoError() public {
         vm.prank(studente1);
         vm.expectRevert("Il nome non puo' essere vuoto");
-        carriera.aggiornaNome("");
+        carriera.aggiornaNome("", studente1);
     }
 
     function test_AggiornaNome_nonAutorizzatoError() public {
         vm.prank(studente2);
         vm.expectRevert("Non autorizzato");
-        carriera.aggiornaNome("Hacker");
+        carriera.aggiornaNome("Hacker", studente2);
     }
 
     // ─── getStudenteInfo ─────────────────────────────────────────
@@ -272,11 +286,11 @@ contract CarrieraStudenteTest is Test {
         assertEq(info.cfuTotali, 0);
         assertEq(info.laureato, false);
     }
+
     function test_GetStudenteInfo_magistrale() public {
         CarrieraStudente carrieraMag = new CarrieraStudente(studente1, segreteria, universita, STUDENTE_ROLE, CORSO_ROLE, CarrieraStudente.TipoLaurea.MAGISTRALE, "Mario", "Rossi");
         vm.prank(segreteria);
         carrieraMag.grantRole(CORSO_ROLE, corso);
-
         CarrieraStudente.StudenteInfo memory info = carrieraMag.getStudenteInfo();
         assertEq(info.wallet, studente1);
         assertEq(info.nome, "Mario");
@@ -309,8 +323,6 @@ contract CarrieraStudenteTest is Test {
         vm.expectRevert();
         carriera.registraEsame("Analisi I", 28, 6);
     }
-
-    // ─── universita come admin ────────────────────────────────────
 
     function test_UniversitaGrantCorsoRole() public {
         address nuovoCorso = makeAddr("nuovoCorso");

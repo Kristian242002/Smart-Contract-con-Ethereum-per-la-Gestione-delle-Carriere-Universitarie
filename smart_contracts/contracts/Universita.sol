@@ -25,12 +25,16 @@ contract Universita is AccessControl {
         factory = new CarrieraStudenteFactory(_segreteria, address(this), STUDENTE_ROLE, CORSO_ROLE);
     }
 
+    // -------------------------------------------------------
+    // SEGRETERIA
+    // -------------------------------------------------------
+
     function aggiungiProfessore(address _professore) external onlyRole(SEGRETERIA_ROLE) {
         require(_professore != address(0), "Indirizzo professore non valido");
         require(!professori[_professore], "Professore gia' registrato");
         professori[_professore] = true;
         listaProfessori.push(_professore);
-        _grantRole(PROFESSORE_ROLE, _professore); 
+        _grantRole(PROFESSORE_ROLE, _professore);
     }
 
     function rimuoviProfessore(address _professore) external onlyRole(SEGRETERIA_ROLE) {
@@ -46,18 +50,17 @@ contract Universita is AccessControl {
         }
     }
 
-    function registraStudente(
-        address _studente,
-        CarrieraStudente.TipoLaurea _tipoLaurea,
-        string memory _nome,
-        string memory _cognome
-    ) external onlyRole(SEGRETERIA_ROLE) {
+    function registraStudente(address _studente,CarrieraStudente.TipoLaurea _tipoLaurea,string memory _nome,string memory _cognome) external onlyRole(SEGRETERIA_ROLE) {
         factory.creaCarriera(_studente, _tipoLaurea, _nome, _cognome);
+        _grantRole(STUDENTE_ROLE, _studente);
     }
 
-    function creaCorso(string memory _nome, int _cfu, uint _maxStudenti, address _professore) external onlyRole(SEGRETERIA_ROLE) returns (address) {
+    function creaCorso(string memory _nome,int _cfu,uint _maxStudenti,address _professore) external onlyRole(SEGRETERIA_ROLE) returns (address) {
         require(professori[_professore], "Il professore non e' registrato nell'universita'");
-        Corso nuovoCorso = new Corso(_nome, _cfu, _maxStudenti, _professore, msg.sender, address(this), SEGRETERIA_ROLE, PROFESSORE_ROLE);
+        Corso nuovoCorso = new Corso(
+            _nome, _cfu, _maxStudenti, _professore,
+            msg.sender, address(this), SEGRETERIA_ROLE, PROFESSORE_ROLE
+        );
         listaCorsi.push(address(nuovoCorso));
         return address(nuovoCorso);
     }
@@ -74,17 +77,41 @@ contract Universita is AccessControl {
     }
 
     function registraVoto(address _corso, address _studente, int _voto, bool _lode) external {
-        require(
-            hasRole(SEGRETERIA_ROLE, msg.sender) || hasRole(PROFESSORE_ROLE, msg.sender),
-            "Solo il professore o la segreteria possono eseguire questa operazione"
-        );
+        require(hasRole(SEGRETERIA_ROLE, msg.sender) || hasRole(PROFESSORE_ROLE, msg.sender),"Solo il professore o la segreteria possono eseguire questa operazione");
         Corso(_corso).registraVoto(_studente, _voto, _lode);
     }
 
+    // -------------------------------------------------------
+    // STUDENTE 
+    // -------------------------------------------------------
+
+    function accettaEsame(uint _esameId) external onlyRole(STUDENTE_ROLE) {
+        address carrieraAddr = factory.getCarriera(msg.sender);
+        CarrieraStudente(carrieraAddr).accettaEsame(_esameId, msg.sender);
+    }
+
+    function rifiutaEsame(uint _esameId) external onlyRole(STUDENTE_ROLE) {
+        address carrieraAddr = factory.getCarriera(msg.sender);
+        CarrieraStudente(carrieraAddr).rifiutaEsame(_esameId, msg.sender);
+    }
+
+    function aggiornaNome(string memory _nome) external onlyRole(STUDENTE_ROLE) {
+        address carrieraAddr = factory.getCarriera(msg.sender);
+        CarrieraStudente(carrieraAddr).aggiornaNome(_nome, msg.sender);
+    }
+
+    function aggiornaCognome(string memory _cognome) external onlyRole(STUDENTE_ROLE) {
+        address carrieraAddr = factory.getCarriera(msg.sender);
+        CarrieraStudente(carrieraAddr).aggiornaCognome(_cognome, msg.sender);
+    }
+
+    // -------------------------------------------------------
+    // VIEW
+    // -------------------------------------------------------
+
     function getQRCode(address _studente) external view returns (CarrieraStudente.StudenteInfo memory) {
         address carrieraAddr = factory.getCarriera(_studente);
-        CarrieraStudente carriera = CarrieraStudente(carrieraAddr);
-        return carriera.getStudenteInfo();
+        return CarrieraStudente(carrieraAddr).getStudenteInfo();
     }
 
     function getListaCorsi() external view returns (address[] memory) {
