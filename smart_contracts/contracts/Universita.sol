@@ -4,17 +4,16 @@ pragma solidity ^0.8.20;
 import "./CarrieraStudente.sol";
 import "./Corso.sol";
 import "./CarrieraStudenteFactory.sol";
-import "@openzeppelin/contracts/access/extensions/AccessControlEnumerable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract Universita is AccessControlEnumerable {
+contract Universita is AccessControl {
 
-    bytes32 public constant SEGRETERIA_ROLE  = keccak256("SEGRETERIA_ROLE");
-    bytes32 public constant PROFESSORE_ROLE  = keccak256("PROFESSORE_ROLE");
-    bytes32 public constant STUDENTE_ROLE    = keccak256("STUDENTE_ROLE");
-    bytes32 public constant CORSO_ROLE       = keccak256("CORSO_ROLE");
+    bytes32 public constant SEGRETERIA_ROLE = keccak256("SEGRETERIA_ROLE");
+    bytes32 public constant PROFESSORE_ROLE = keccak256("PROFESSORE_ROLE");
+    bytes32 public constant STUDENTE_ROLE = keccak256("STUDENTE_ROLE");
+    bytes32 public constant CORSO_ROLE = keccak256("CORSO_ROLE");
 
     CarrieraStudenteFactory public factory;
-
     mapping(address => bool) public professori;
     address[] public listaProfessori;
     address[] public listaCorsi;
@@ -37,7 +36,14 @@ contract Universita is AccessControlEnumerable {
     function rimuoviProfessore(address _professore) external onlyRole(SEGRETERIA_ROLE) {
         require(professori[_professore], "Professore non registrato");
         professori[_professore] = false;
-        _revokeRole(PROFESSORE_ROLE, _professore);  
+        _revokeRole(PROFESSORE_ROLE, _professore);
+        for (uint i = 0; i < listaProfessori.length; i++) {
+            if (listaProfessori[i] == _professore) {
+                listaProfessori[i] = listaProfessori[listaProfessori.length - 1];
+                listaProfessori.pop();
+                break;
+            }
+        }
     }
 
     function registraStudente(
@@ -51,8 +57,7 @@ contract Universita is AccessControlEnumerable {
 
     function creaCorso(string memory _nome, int _cfu, uint _maxStudenti, address _professore) external onlyRole(SEGRETERIA_ROLE) returns (address) {
         require(professori[_professore], "Il professore non e' registrato nell'universita'");
-        address segreteriaReale = getRoleMember(SEGRETERIA_ROLE, 0);
-        Corso nuovoCorso = new Corso(_nome, _cfu, _maxStudenti, _professore, segreteriaReale, address(this), SEGRETERIA_ROLE, PROFESSORE_ROLE);
+        Corso nuovoCorso = new Corso(_nome, _cfu, _maxStudenti, _professore, msg.sender, address(this), SEGRETERIA_ROLE, PROFESSORE_ROLE);
         listaCorsi.push(address(nuovoCorso));
         return address(nuovoCorso);
     }

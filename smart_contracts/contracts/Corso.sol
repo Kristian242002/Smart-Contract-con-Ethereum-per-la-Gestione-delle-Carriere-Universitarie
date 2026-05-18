@@ -26,6 +26,8 @@ contract Corso is AccessControl {
 
     mapping(address => address) public carriere;
     address[] public iscritti;
+    mapping(address => bool ) public votiRegistrati; // tengo traccia degli studenti che hanno gia ricevuto un voto
+
 
     constructor(string memory _nome,int _cfu,uint _maxStudenti,address _professore, address _segreteria,address _universita,bytes32 _segreteriaRole,bytes32 _professoreRole) {
         require(bytes(_nome).length > 0, "Il nome del corso non puo' essere vuoto");
@@ -63,26 +65,24 @@ contract Corso is AccessControl {
         require(_carriera != address(0), "Indirizzo carriera non valido");
         require(carriere[_studente] == address(0), "Studente gia' iscritto");
         require(numeroIscritti < maxStudenti, "Numero massimo di studenti raggiunto");
-
         carriere[_studente] = _carriera;
         iscritti.push(_studente);
         numeroIscritti++;
     }
 
     function registraVoto(address _studente, int _voto, bool _lode) external {
-        require(
-            hasRole(SEGRETERIA_ROLE, msg.sender) || hasRole(PROFESSORE_ROLE, msg.sender),
-            "Solo il professore o la segreteria possono eseguire questa operazione"
-        );
+        require(hasRole(SEGRETERIA_ROLE, msg.sender) || hasRole(PROFESSORE_ROLE, msg.sender),"Solo il professore o la segreteria possono eseguire questa operazione");
         require(stato == StatoCorso.CHIUSO, "Operazione non consentita nello stato corrente");
         require(carriere[_studente] != address(0), "Studente non iscritto al corso");
         require(_voto >= 0 && _voto <= 30, "Voto non valido: deve essere tra 0 e 30");
         require(!(_lode && _voto != 30), "La lode e' consentita solo con voto 30");
-
-        int votoFinale = _lode ? int(31) : _voto;
+        require(!votiRegistrati[_studente], "Voto gia' registrato per questo utente");
+        int votoFinale = _voto;
+        if (_lode) votoFinale = 31;
 
         CarrieraStudente carriera = CarrieraStudente(carriere[_studente]);
         carriera.registraEsame(nome, votoFinale, cfu);
+        votiRegistrati[_studente] = true;
     }
 
     function getIscritti() external view returns (address[] memory) {

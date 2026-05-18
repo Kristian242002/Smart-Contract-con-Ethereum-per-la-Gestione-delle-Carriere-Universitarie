@@ -43,6 +43,8 @@ contract CarrieraStudente is AccessControl {
     bytes32 public STUDENTE_ROLE;
     bytes32 public CORSO_ROLE;
 
+    int public cfuAccettati;
+
     constructor( address _studente,address _segreteria,address _universita,bytes32 _studenteRole,bytes32 _corsoRole,TipoLaurea _tipoLaurea,string memory _nome,string memory _cognome) {
         require(_studente != address(0), "Indirizzo studente non valido");
         require(_segreteria != address(0), "Indirizzo segreteria non valido");
@@ -102,6 +104,7 @@ contract CarrieraStudente is AccessControl {
         require(esami[_esameId].stato != StatoEsame.ACCETTATO, "Esame gia' accettato");
         require(esami[_esameId].stato != StatoEsame.RIFIUTATO, "Esame gia' rifiutato");
         esami[_esameId].stato = StatoEsame.ACCETTATO;
+        cfuAccettati += esami[_esameId].cfu;
     }
 
     function rifiutaEsame(uint _esameId) external onlyRole(STUDENTE_ROLE) {
@@ -112,12 +115,8 @@ contract CarrieraStudente is AccessControl {
         esami[_esameId].stato = StatoEsame.RIFIUTATO;
     }
 
-    function getCFUTotali() public view returns (int totale) {
-        for (uint i = 0; i < esami.length; i++) {
-            if (esami[i].stato == StatoEsame.ACCETTATO) {
-                totale += esami[i].cfu;
-            }
-        }
+    function getCFUTotali() public view returns (int) {
+        return cfuAccettati; 
     }
 
     function getNumeroEsami() external view returns (uint) {
