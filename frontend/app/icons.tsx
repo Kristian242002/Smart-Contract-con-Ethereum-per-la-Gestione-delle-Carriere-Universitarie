@@ -90,3 +90,95 @@ export function IconArrowRight({ className }: IconProps) {
     </svg>
   );
 }
+
+// Contenitore comune per le icone qui sotto (stesso stile delle altre)
+function Svg({ className, children }: IconProps & { children: React.ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      {children}
+    </svg>
+  );
+}
+
+export function IconCopia({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+    </Svg>
+  );
+}
+
+export function IconLinkEsterno({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M14 4h6v6" />
+      <path d="M20 4l-9 9" />
+      <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    </Svg>
+  );
+}
+
+export function IconInfo({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
+    </Svg>
+  );
+}
+
+export function IconAttenzione({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+      <path d="M10.3 3.9L2.5 18a1 1 0 0 0 .9 1.5h17.2a1 1 0 0 0 .9-1.5L13.7 3.9a1.6 1.6 0 0 0-2.8 0z" />
+    </Svg>
+  );
+}
+
+export function IconLucchetto({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </Svg>
+  );
+}
+
+export function IconX({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </Svg>
+  );
+}
+
+export function IconGiu({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M6 9l6 6 6-6" />
+    </Svg>
+  );
+}
+
+export function IconMenu({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h16" />
+    </Svg>
+  );
+}

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import AzioniProvider from "./AzioniProvider";
+import WalletProvider from "./WalletProvider";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -35,7 +37,11 @@ export default function RootLayout({
       lang="it"
       className={`${spaceGrotesk.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <WalletProvider>
+          <AzioniProvider>{children}</AzioniProvider>
+        </WalletProvider>
+      </body>
     </html>
   );
 }

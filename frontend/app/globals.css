@@ -1,20 +1,68 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/*
+  Colori e font del design "Cattedra".
+  Ogni --color-xxx diventa una classe Tailwind: bg-xxx, text-xxx, border-xxx.
+  Esempio: --color-accento -> bg-accento, text-accento, border-accento
+*/
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Font */
   --font-sans: var(--font-ibm-plex-sans);
   --font-heading: var(--font-space-grotesk);
   --font-mono: var(--font-ibm-plex-mono);
+
+  /* Colori principali */
+  --color-navy: #0a1e3d; /* titoli, testo principale, card scure */
+  --color-accento: #2d6be4; /* bottoni e link */
+  --color-accento-chiaro: #eaf1ff; /* sfondo voce di menu attiva, box info */
+  --color-accento-tenue: #f5f9ff; /* sfondo opzione selezionata */
+
+  /* Sfondi e bordi */
+  --color-sfondo: #f4f6fa; /* sfondo della pagina */
+  --color-campo: #f7f9fc; /* sfondo degli input */
+  --color-bordo: #eceff4; /* bordo delle card */
+  --color-bordo-medio: #e6eaf1;
+  --color-bordo-forte: #d5dce8; /* bordo degli input */
+  --color-riga: #f1f3f8; /* separatore tra righe di una lista */
+  --color-scheletro: #e6ebf2; /* blocchi di caricamento */
+
+  /* Testo */
+  --color-testo-2: #3a4d6b; /* etichette dei campi */
+  --color-testo-3: #5a6b85; /* testo secondario */
+  --color-muto: #8392ab; /* note, didascalie */
+  --color-segnaposto: #a3aec2;
+
+  /* Stati */
+  --color-verde: #22a557;
+  --color-verde-scuro: #1b7a43;
+  --color-verde-chiaro: #e7f6ec;
+  --color-ambra: #b7791f;
+  --color-ambra-scuro: #7a5320;
+  --color-ambra-chiaro: #fff9f2;
+  --color-rosso: #c0392b;
+  --color-rosso-scuro: #7a3a33;
+  --color-rosso-chiaro: #fdecec;
+  --color-rosso-bordo: #f3d2ce;
+  --color-grigio: #64748b;
+  --color-metamask: #f6851b;
+
+  /* Animazione di comparsa delle schermate */
+  --animate-comparsa: comparsa 0.35s ease;
+}
+
+@keyframes comparsa {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-sfondo);
+  color: var(--color-navy);
   font-family: var(--font-sans);
 }
