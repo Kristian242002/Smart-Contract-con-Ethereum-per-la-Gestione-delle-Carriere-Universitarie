@@ -182,3 +182,12 @@ export function IconMenu({ className }: IconProps) {
     </Svg>
   );
 }
+
+export function IconCerca({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-4-4" />
+    </Svg>
+  );
+}

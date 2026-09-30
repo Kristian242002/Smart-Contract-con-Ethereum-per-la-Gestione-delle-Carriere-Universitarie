@@ -18,13 +18,12 @@ const anteprimaEsami = [
   { nome: "Fisica", cfu: 6, voto: "17", stato: "INSUFFICIENTE", colore: "text-[#F29B8F]" },
 ];
 
-// Il ciclo di vita di un esame, con la funzione del contratto usata in ogni passo
 const passi = [
-  { ruolo: "SEGRETERIA", titolo: "Registra lo studente", testo: "Viene effettuato il deploy del suo contratto CarrieraStudente.", funzione: "registraStudente()" },
-  { ruolo: "SEGRETERIA", titolo: "Crea il corso e iscrive", testo: "Un contratto Corso con CFU, posti e professore; poi le iscrizioni finché c'è posto.", funzione: "creaCorso() · iscriviStudenteACorso()" },
-  { ruolo: "SEGRETERIA", titolo: "Chiude le iscrizioni", testo: "Operazione irreversibile: da qui il corso accetta i voti.", funzione: "chiudiIscrizioniCorso()" },
-  { ruolo: "PROFESSORE", titolo: "Registra i voti", testo: "Un solo voto per studente, 0–30, lode solo con 30. Può farlo anche la segreteria.", funzione: "registraVoto()" },
-  { ruolo: "STUDENTE", titolo: "Accetta o rifiuta", testo: "I CFU accettati si sommano: alla soglia (180 o 120) la carriera risulta Laureato.", funzione: "accettaEsame() · rifiutaEsame()" },
+  { ruolo: "SEGRETERIA", titolo: "Registra lo studente", testo: "Viene effettuato il deploy del suo contratto CarrieraStudente."},
+  { ruolo: "SEGRETERIA", titolo: "Crea il corso e iscrive", testo: "Un contratto Corso con CFU, posti e professore; poi le iscrizioni finché c'è posto."},
+  { ruolo: "SEGRETERIA", titolo: "Chiude le iscrizioni", testo: "Operazione irreversibile: da qui il corso accetta i voti."},
+  { ruolo: "PROFESSORE", titolo: "Registra i voti", testo: "Un solo voto per studente, 0–30, lode solo con 30. Può farlo anche la segreteria."},
+  { ruolo: "STUDENTE", titolo: "Accetta o rifiuta", testo: "I CFU accettati si sommano: alla soglia (180 o 120) la carriera risulta Laureato."},
 ];
 
 const ruoli = [
@@ -35,7 +34,7 @@ const ruoli = [
 
 const stack = [
   ["Smart contract", "Solidity · OpenZeppelin AccessControl"],
-  ["Rete", "Ethereum Sepolia (testnet)"],
+  ["Rete", "Ethereum Sepolia"],
   ["Frontend", "Next.js · viem"],
   ["Wallet", "MetaMask"],
 ];
@@ -45,13 +44,13 @@ export default function Frontespizio() {
     <div className="animate-comparsa">
       {/* Barra in alto */}
       <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-bordo bg-white/85 px-5 py-4 backdrop-blur-md md:px-10">
-        <Logo sottotitolo="Prototipo di tesi" />
+        <Logo/>
         <div className="flex items-center gap-3">
           <Link
             href="/verifica"
-            className="hidden rounded-[9px] border border-bordo-forte px-[18px] py-2.5 text-sm font-semibold text-testo-2 sm:block"
+            className="rounded-[9px] border border-bordo-forte px-3.5 py-2.5 text-sm font-semibold whitespace-nowrap text-testo-2 sm:px-[18px]"
           >
-            Verifica un titolo
+            Verifica<span className="hidden sm:inline"> un titolo</span>
           </Link>
           <Link
             href="/connetti"
@@ -127,7 +126,7 @@ export default function Frontespizio() {
       <section className="mx-auto max-w-[1180px] px-5 pb-16 md:px-10">
         <p className="mb-1.5 text-center text-[11px] font-semibold tracking-[.06em] text-muto">COME FUNZIONA</p>
         <h2 className="mb-[26px] text-center font-heading text-[26px] font-bold">
-          Il ciclo di vita di un esame, on-chain
+          Come funziona il ciclo di vita di un esame ?
         </h2>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3">
           {passi.map((p, i) => (
@@ -138,7 +137,6 @@ export default function Frontespizio() {
               </div>
               <div className="font-heading text-base font-semibold">{p.titolo}</div>
               <div className="text-[13px] leading-normal text-testo-3">{p.testo}</div>
-              <div className="mt-auto font-mono text-[11px] text-testo-2">{p.funzione}</div>
             </div>
           ))}
         </div>
@@ -146,9 +144,9 @@ export default function Frontespizio() {
 
       {/* Tre ruoli */}
       <section className="mx-auto max-w-[1180px] px-5 pb-16 md:px-10">
-        <p className="mb-3.5 text-center text-[11px] font-semibold tracking-[.06em] text-muto">
-          ARCHITETTURA DEL SISTEMA · TRE RUOLI ON-CHAIN
-        </p>
+        <h2 className="mb-[26px] text-center font-heading text-[26px] font-bold">
+          Gestione dei ruoli
+        </h2>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-[18px]">
           {ruoli.map(({ Icona, nome, testo }) => (
             <div key={nome} className="rounded-[14px] border border-bordo bg-white p-6">
@@ -178,7 +176,7 @@ export default function Frontespizio() {
         </div>
 
         <div className="flex flex-[1_1_380px] flex-col gap-3.5 rounded-[14px] bg-navy p-6 text-white">
-          <p className="text-[11px] font-semibold tracking-[.06em] text-[#8FA6CC]">CONTRATTO UNIVERSITA · SEPOLIA</p>
+          <p className="text-[11px] font-semibold tracking-[.06em] text-[#8FA6CC]">CONTRATTO UNIVERSITA CON SEPOLIA</p>
           <p className="font-mono text-sm leading-[1.55] break-all">{CONTRACT_ADDRESS}</p>
           <div className="mt-auto flex flex-wrap gap-2.5">
             <BottoneCopia

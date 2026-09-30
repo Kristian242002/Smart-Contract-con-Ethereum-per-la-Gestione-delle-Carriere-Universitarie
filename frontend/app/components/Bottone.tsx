@@ -37,29 +37,21 @@ export default function Bottone({
     ? "rounded-[9px] px-[15px] py-[9px] text-[13px]"
     : "rounded-[11px] px-5 py-[13px] text-sm";
 
-  const bottone = (
+  // Non usiamo l'attributo "disabled": un bottone disabled non mostra il title (il motivo).
+  // Usiamo aria-disabled e ignoriamo il clic.
+  return (
     <button
-      type={type}
-      onClick={onClick}
-      disabled={disabilitato}
+      type={disabilitato ? "button" : type} // disabilitato non deve inviare un form
+      onClick={disabilitato ? undefined : onClick}
+      aria-disabled={disabilitato}
+      title={disabilitato ? motivo : undefined}
       className={
-        "inline-flex items-center justify-center gap-2 font-semibold transition-opacity hover:opacity-90 " +
-        "disabled:cursor-not-allowed disabled:opacity-45 " +
+        "inline-flex items-center justify-center gap-2 font-semibold transition-opacity " +
+        (disabilitato ? "cursor-not-allowed opacity-45 " : "hover:opacity-90 ") +
         colori[variante] + " " + dimensione + " " + className
       }
     >
       {children}
     </button>
   );
-
-  // Un bottone disabilitato non mostra il title: lo mettiamo su un contenitore
-  if (disabilitato && motivo) {
-    return (
-      <span title={motivo} className="inline-flex">
-        {bottone}
-      </span>
-    );
-  }
-
-  return bottone;
 }

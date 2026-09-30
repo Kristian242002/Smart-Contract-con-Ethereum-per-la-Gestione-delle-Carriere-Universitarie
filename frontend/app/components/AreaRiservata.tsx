@@ -60,15 +60,9 @@ export default function AreaRiservata({ ruolo, children }: Props) {
         <div className="flex flex-wrap items-center justify-center gap-3.5 bg-rosso px-5 py-[11px] text-sm text-white">
           <IconAttenzione className="h-[17px] w-[17px]" />
           <span>
-            <b>Rete sbagliata:</b> il wallet non è su Sepolia. Letture e transazioni sono sospese.
+            <b>Rete sbagliata:</b> il wallet non è su Sepolia. Seleziona la rete Sepolia in MetaMask per poter
+            firmare le transazioni.
           </span>
-          <button
-            type="button"
-            onClick={w.passaASepolia}
-            className="rounded-lg bg-white px-3 py-1.5 text-[13px] font-semibold text-rosso"
-          >
-            Passa a Sepolia
-          </button>
         </div>
       )}
 

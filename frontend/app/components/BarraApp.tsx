@@ -9,6 +9,7 @@ import { useState } from "react";
 import { IconGiu, IconLinkEsterno, IconMenu } from "../icons";
 import { abbrevia, coloreAvatar, linkIndirizzo } from "../utils";
 import { useWallet, type Ruoli } from "../WalletProvider";
+import { useCarrieraSeDisponibile } from "../CarrieraProvider";
 import BottoneCopia from "./BottoneCopia";
 import Indirizzo from "./Indirizzo";
 import Logo from "./Logo";
@@ -38,6 +39,7 @@ const NOME_RUOLO: Record<keyof Ruoli, string> = {
 
 export default function BarraApp({ ruolo }: { ruolo: keyof Ruoli }) {
   const { indirizzo, disconnetti } = useWallet();
+  const contesto = useCarrieraSeDisponibile();
   const percorso = usePathname();
   const [menuWallet, setMenuWallet] = useState(false);
   const [menuMobile, setMenuMobile] = useState(false);
@@ -45,13 +47,22 @@ export default function BarraApp({ ruolo }: { ruolo: keyof Ruoli }) {
   if (!indirizzo) return null;
 
   const voci = MENU[ruolo];
+
+  // Numeri ambra accanto alle voci di menu (per ora: esami in attesa dello studente)
+  const inAttesa = contesto?.carriera?.esami.filter((e) => e.stato === "IN_ATTESA").length ?? 0;
+  const contatori: Record<string, number> = { "/studente/esami": inAttesa };
   const radice = voci[0].href; // es. "/segreteria"
 
-  // Una voce è attiva se siamo nella sua pagina o in una sotto-pagina
-  // (es. /segreteria/corsi/0x… accende "Corsi"). La prima voce solo se esatta.
-  function attiva(href: string) {
-    if (href === radice) return percorso === href;
+  // Siamo nella pagina "href" o in una sua sotto-pagina? (es. /segreteria/corsi/0x… è dentro /segreteria/corsi)
+  function dentro(href: string) {
     return percorso === href || percorso.startsWith(href + "/");
+  }
+
+  // La prima voce (es. "Panoramica") è attiva solo se nessun'altra voce lo è:
+  // altrimenti /segreteria/corsi accenderebbe sia "Panoramica" sia "Corsi"
+  function attiva(href: string) {
+    if (href === radice) return dentro(href) && !voci.some((v) => v.href !== radice && dentro(v.href));
+    return dentro(href);
   }
 
   return (
@@ -72,6 +83,7 @@ export default function BarraApp({ ruolo }: { ruolo: keyof Ruoli }) {
                 }
               >
                 {v.etichetta}
+                <Contatore numero={contatori[v.href]} />
               </Link>
             ))}
           </nav>
@@ -163,6 +175,7 @@ export default function BarraApp({ ruolo }: { ruolo: keyof Ruoli }) {
               }
             >
               {v.etichetta}
+              <Contatore numero={contatori[v.href]} />
             </Link>
           ))}
 
@@ -191,5 +204,15 @@ function RigaMenu({ etichetta, children }: { etichetta: string; children: React.
       <span className="text-testo-3">{etichetta}</span>
       <span className="font-semibold">{children}</span>
     </div>
+  );
+}
+
+// Pallino ambra con un numero (non mostrato se 0)
+function Contatore({ numero }: { numero?: number }) {
+  if (!numero) return null;
+  return (
+    <span className="ml-[7px] inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ambra px-[5px] text-[11px] font-bold text-white">
+      {numero}
+    </span>
   );
 }

@@ -1,9 +1,5 @@
 "use client";
-
 // Contesto del wallet: tiene indirizzo, rete e ruoli disponibili in TUTTE le pagine.
-// Si usa così, in qualsiasi componente client:
-//   const { indirizzo, ruoli, connetti } = useWallet();
-
 import { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
 import { keccak256, toBytes } from "viem";
 import { CONTRACT_ADDRESS, getWalletClient, publicClient } from "./client";
@@ -32,20 +28,13 @@ type Wallet = {
   statoConnessione: StatoConnessione;
   connetti: () => Promise<void>;
   disconnetti: () => Promise<void>;
-  passaASepolia: () => Promise<void>;
 };
 
 const WalletContext = createContext<Wallet | null>(null);
 
 // ---------- Lettura dei ruoli dal contratto ----------
 
-// Controlla se l'indirizzo ha un certo ruolo nel contratto.
-// Il codice del ruolo non serve chiederlo al contratto: in Universita.sol è
-// keccak256("SEGRETERIA_ROLE"), quindi lo calcoliamo qui (una lettura in meno).
-async function haRuolo(
-  nomeRuolo: "SEGRETERIA_ROLE" | "PROFESSORE_ROLE" | "STUDENTE_ROLE",
-  indirizzo: Indirizzo
-) {
+async function haRuolo(nomeRuolo: "SEGRETERIA_ROLE" | "PROFESSORE_ROLE" | "STUDENTE_ROLE",indirizzo: Indirizzo) {
   return publicClient.readContract({
     address: CONTRACT_ADDRESS,
     abi: universitaAbi,
@@ -65,46 +54,8 @@ async function caricaRuoli(indirizzo: Indirizzo): Promise<Ruoli> {
   return { segreteria, professore, studente };
 }
 
-// ---------- Rete ----------
-
-// Porta MetaMask sulla rete Sepolia (la aggiunge se manca)
-async function passaASepolia() {
-  const eth = window.ethereum;
-  if (!eth) return;
-
-  const reteAttuale = await eth.request({ method: "eth_chainId" });
-  if (reteAttuale === SEPOLIA) return;
-
-  try {
-    await eth.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: SEPOLIA }],
-    });
-  } catch (err) {
-    const code = (err as { code?: number }).code;
-
-    // 4902 = MetaMask non conosce la rete: la aggiungiamo
-    if (code !== 4902) throw err;
-
-    await eth.request({
-      method: "wallet_addEthereumChain",
-      params: [
-        {
-          chainId: SEPOLIA,
-          chainName: "Sepolia",
-          nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
-          rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],
-          blockExplorerUrls: ["https://sepolia.etherscan.io"],
-        },
-      ],
-    });
-  }
-}
-
 // ---------- MetaMask installato? ----------
 
-// window.ethereum esiste solo nel browser: sul server diciamo "sì"
-// per non mostrare l'errore per un attimo prima che la pagina si carichi
 function nessunaIscrizione() {
   return () => {};
 }
@@ -132,8 +83,7 @@ export default function WalletProvider({ children }: { children: React.ReactNode
   const [ruoliLetti, setRuoliLetti] = useState<{ indirizzo: Indirizzo; ruoli: Ruoli } | null>(null);
   const [erroreRuoliPer, setErroreRuoliPer] = useState<Indirizzo | null>(null);
 
-  // All'avvio: il wallet è già connesso? Su che rete è?
-  // E ci mettiamo in ascolto dei cambi di account e di rete fatti in MetaMask.
+
   useEffect(() => {
     const eth = window.ethereum;
     if (!eth) return;
@@ -170,9 +120,18 @@ export default function WalletProvider({ children }: { children: React.ReactNode
   useEffect(() => {
     if (!indirizzo) return;
 
-    caricaRuoli(indirizzo)
+    // Se il nodo non risponde entro 15 secondi smettiamo di aspettare e mostriamo l'errore,
+    // invece di lasciare la rotella girare per sempre
+    const scaduto = new Promise<never>((_, rifiuta) =>
+      setTimeout(() => rifiuta(new Error("Il nodo non ha risposto entro 15 secondi")), 15_000)
+    );
+
+    Promise.race([caricaRuoli(indirizzo), scaduto])
       .then((ruoli) => setRuoliLetti({ indirizzo, ruoli }))
-      .catch(() => setErroreRuoliPer(indirizzo));
+      .catch((err) => {
+        console.error("Lettura dei ruoli non riuscita:", err);
+        setErroreRuoliPer(indirizzo);
+      });
   }, [indirizzo]);
 
   async function connetti() {
@@ -182,7 +141,6 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     setStatoConnessione("in_corso");
 
     try {
-      await passaASepolia();
       const [addr] = await walletClient.requestAddresses();
       setIndirizzo(addr);
       setStatoConnessione("inattivo");
@@ -223,7 +181,6 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     statoConnessione,
     connetti,
     disconnetti,
-    passaASepolia,
   };
 
   return <WalletContext.Provider value={valore}>{children}</WalletContext.Provider>;

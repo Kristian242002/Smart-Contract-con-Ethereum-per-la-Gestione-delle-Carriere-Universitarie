@@ -12,6 +12,8 @@ import BottoneCopia from "../components/BottoneCopia";
 import Indirizzo from "../components/Indirizzo";
 import Logo from "../components/Logo";
 import { IconBookOpen, IconCheck, IconGraduationCap, IconLandmark, IconX } from "../icons";
+import { leggiCorsi } from "../letture";
+import { useDati } from "../useDati";
 import { useWallet, type Ruoli } from "../WalletProvider";
 
 // I tre ruoli, con la pagina a cui porta ciascuno
@@ -61,7 +63,7 @@ function Contenuto() {
     return <Pronto errore={w.statoConnessione === "errore"} onConnetti={w.connetti} />;
   }
 
-  if (!w.reteGiusta) return <ReteSbagliata idRete={w.idRete} onCambia={w.passaASepolia} />;
+  if (!w.reteGiusta) return <ReteSbagliata idRete={w.idRete} />;
   if (w.erroreRuoli) return <ErroreRuoli />;
   if (!w.ruoli) return <Caricamento testo="Lettura dei ruoli dal contratto…" />;
 
@@ -157,17 +159,13 @@ function Rifiutata({ onRiprova }: { onRiprova: () => void }) {
   );
 }
 
-function ReteSbagliata({ idRete, onCambia }: { idRete: number | null; onCambia: () => void }) {
+// La rete si cambia a mano da MetaMask: appena cambia, la pagina si aggiorna da sola
+function ReteSbagliata({ idRete }: { idRete: number | null }) {
   return (
-    <>
-      <Avviso tipo="errore" titolo="Rete sbagliata" className="mb-4">
-        Il wallet è sulla rete con chainId {idRete ?? "sconosciuto"}. I contratti di Cattedra sono
-        su Sepolia (chainId 11155111).
-      </Avviso>
-      <Bottone onClick={onCambia} className="w-full">
-        Passa a Sepolia
-      </Bottone>
-    </>
+    <Avviso tipo="errore" titolo="Rete sbagliata">
+      Il wallet è sulla rete con chainId {idRete ?? "sconosciuto"}. I contratti di Cattedra sono su Sepolia
+      (chainId 11155111): seleziona la rete Sepolia in MetaMask.
+    </Avviso>
   );
 }
 
@@ -280,6 +278,22 @@ function PiuRuoli({ indirizzo, posseduti }: { indirizzo: string; posseduti: Chia
 }
 
 function NessunRuolo({ indirizzo }: { indirizzo: string }) {
+  // Un professore rimosso non ha più ruoli, ma i suoi corsi restano assegnati al suo indirizzo
+  const { dati: corsi } = useDati(() => leggiCorsi(), []);
+  const corsiAssegnati = (corsi ?? []).filter((c) => c.professore.toLowerCase() === indirizzo.toLowerCase());
+
+  if (corsiAssegnati.length > 0) {
+    return (
+      <>
+        <Connesso indirizzo={indirizzo} />
+        <Avviso tipo="bloccato" titolo="Non sei più abilitato come professore">
+          La segreteria ha rimosso il tuo ruolo. I tuoi {corsiAssegnati.length} corsi restano assegnati a questo
+          indirizzo, ma solo la segreteria può registrare i voti.
+        </Avviso>
+      </>
+    );
+  }
+
   return (
     <>
       <Connesso indirizzo={indirizzo} />
