@@ -1,11 +1,5 @@
 "use client";
 
-// Contesto per le azioni che l'utente fa sul contratto. Fornisce:
-//   esegui(passi, messaggio) -> apre la finestra della transazione (firma -> invio -> conferma)
-//   conferma({...})          -> chiede "Sei sicuro?" prima di un'azione irreversibile
-//   toast(messaggio)         -> messaggio breve in basso dopo un'azione riuscita
-// Si usa così:  const { esegui, conferma, toast } = useAzioni();
-
 import { createContext, useContext, useRef, useState } from "react";
 import {
   BaseError,

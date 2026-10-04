@@ -79,7 +79,7 @@ export default function Studenti() {
     <div>
       <h1 className="mb-1 font-heading text-[26px] font-bold">Studenti</h1>
       <p className="mb-[22px] max-w-[640px] text-sm leading-normal text-testo-3">
-        Il contratto non espone un elenco degli studenti: puoi registrarne uno nuovo oppure cercare una
+        Il contratto non espone un elenco degli studenti, puoi devidere di registrarne uno nuovo oppure cercare una
         carriera per indirizzo.
       </p>
 
@@ -133,8 +133,7 @@ export default function Studenti() {
               </div>
 
               <Avviso>
-                Alla conferma viene effettuato il <b>deploy del contratto CarrieraStudente</b>. Il tipo di laurea
-                non potrà essere modificato dallo studente.
+                Nota bene il tipo di laurea non potrà essere modificato dallo studente.
               </Avviso>
 
               <Bottone
@@ -151,7 +150,7 @@ export default function Studenti() {
 
         <Card className="min-w-0 flex-[1_1_320px] rounded-2xl">
           <h2 className="mb-1 font-heading text-[17px] font-semibold">Cerca carriera</h2>
-          <p className="mb-3 text-[13px] text-testo-3">Legge getCarrieraStudente(indirizzo).</p>
+          <p className="mb-3 text-[13px] text-testo-3">Puoi cercare la carriera di uno studente con questo panello qua</p>
           <CercaCarriera />
         </Card>
       </div>

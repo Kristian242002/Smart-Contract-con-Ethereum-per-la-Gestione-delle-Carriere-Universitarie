@@ -92,7 +92,7 @@ export default function Profilo() {
         )}
         {firme === 1 && (
           <p className="text-[13px] text-testo-3">
-            1 firma: <span className="font-mono">{cambiaNome ? "aggiornaNome" : "aggiornaCognome"}()</span>
+            1 firma per <span className="font-mono">{cambiaNome ? "aggiornare il Nome" : "aggiornare il Cognome"}</span>
           </p>
         )}
 

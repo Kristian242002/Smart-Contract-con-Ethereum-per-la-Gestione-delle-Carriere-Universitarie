@@ -1,8 +1,4 @@
 "use client";
-
-// Segreteria · Panoramica: numeri letti dal contratto Universita e dai contratti Corso,
-// più una lista "Da fare" calcolata dallo stato dei corsi.
-
 import Link from "next/link";
 import { CONTRACT_ADDRESS } from "../client";
 import BarraProgresso from "../components/BarraProgresso";
@@ -16,12 +12,18 @@ import { leggiCorsi, leggiProfessori, statoCorso, type Corso } from "../letture"
 import { useDati } from "../useDati";
 
 export default function Panoramica() {
-  const { dati, caricamento, errore, ricarica } = useDati(
-    () => Promise.all([leggiProfessori(), leggiCorsi()]),
-    []
-  );
-  const professori = dati?.[0] ?? [];
-  const corsi = dati?.[1] ?? [];
+  // Leggiamo professori e corsi insieme (in parallelo) e li restituiamo con un nome
+  const { dati, caricamento, errore, ricarica } = useDati(async () => {
+    const [professori, corsi] = await Promise.all([leggiProfessori(), leggiCorsi()]);
+    return { professori, corsi };
+  }, []);
+
+  let professori: readonly string[] = [];
+  let corsi: Corso[] = [];
+  if (dati) {
+    professori = dati.professori;
+    corsi = dati.corsi;
+  }
 
   const aperti = corsi.filter((c) => c.stato === "APERTO").length;
   const postiOccupati = corsi.reduce((tot, c) => tot + c.iscritti.length, 0);
@@ -64,7 +66,7 @@ export default function Panoramica() {
         ) : (
           <>
             <Statistica titolo="Professori abilitati" valore={professori.length}>
-              <span className="font-mono text-[11px] text-muto">getListaProfessori()</span>
+              <span>numero dei prof. abilitati</span>
             </Statistica>
             <Statistica titolo="Corsi totali" valore={corsi.length}>
               <span className="font-semibold text-verde-scuro">{aperti} aperti</span> · {corsi.length - aperti} chiusi
@@ -86,7 +88,6 @@ export default function Panoramica() {
         <Card className="min-w-0 flex-[1.4_1_460px]">
           <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <h2 className="font-heading text-base font-semibold">Da fare</h2>
-            <span className="text-xs text-muto">calcolato dallo stato dei corsi</span>
           </div>
 
           {caricamento && (
@@ -123,7 +124,7 @@ export default function Panoramica() {
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-[18px]">
           <Card>
             <h2 className="mb-1 font-heading text-base font-semibold">Cerca studente</h2>
-            <p className="mb-3 text-[13px] text-testo-3">Il contratto non espone un elenco: cerca per indirizzo.</p>
+            <p className="mb-3 text-[13px] text-testo-3">Usa l'indirizzo del wallet per cercare lo studente</p>
             <CercaCarriera />
           </Card>
 
@@ -143,7 +144,6 @@ export default function Panoramica() {
   );
 }
 
-// Cosa c'è da fare su ogni corso, in base al suo stato
 function calcolaDaFare(corsi: Corso[]) {
   const lista: { corso: Corso; testo: string; etichetta: string; colore: string }[] = [];
 

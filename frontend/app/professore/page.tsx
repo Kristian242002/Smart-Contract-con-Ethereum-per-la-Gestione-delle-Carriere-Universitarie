@@ -33,7 +33,7 @@ export default function MieiCorsi() {
         <div>
           <h1 className="font-heading text-[28px] font-bold">I miei corsi</h1>
           <p className="mt-[3px] text-sm text-testo-3">
-            Corsi del contratto Universita con professore = il tuo indirizzo.
+            Questi sono i tuoi corsi disponibili, per qualsiasi errori contatti la Segreteria
           </p>
         </div>
         {io && (

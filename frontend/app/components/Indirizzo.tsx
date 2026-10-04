@@ -17,7 +17,17 @@ export default function Indirizzo({ indirizzo, etherscan = false, className = ""
   const [copiato, setCopiato] = useState(false);
 
   async function copia() {
-    await navigator.clipboard.writeText(indirizzo);
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(indirizzo);
+    } else {
+      // Fuori da https/localhost la Clipboard API non c'è: uso il vecchio metodo
+      const area = document.createElement("textarea");
+      area.value = indirizzo;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      area.remove();
+    }
     setCopiato(true);
     setTimeout(() => setCopiato(false), 1500);
   }
