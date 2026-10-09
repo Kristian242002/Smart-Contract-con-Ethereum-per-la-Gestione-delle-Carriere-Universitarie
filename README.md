@@ -252,21 +252,3 @@ If you deploy your own copy, remember to update `CONTRACT_ADDRESS` in `frontend/
         ├── WalletProvider.tsx           # wallet connection and roles
         └── abi.ts, abi-contratti.ts     # contract ABIs
 ```
-
----
-
-## What I'd do next
-
-This is a thesis project, not a production system, and there are some honest limitations worth calling out:
-
-- **Privacy.** Everything on a public blockchain is public. Right now names and grades can be read by anyone who knows the address. A natural next step would be keeping the personal data off-chain and storing only hashes or zero-knowledge proofs on-chain.
-- **Lost keys.** A student is their wallet. If they lose their private key, they lose control of their career. A recovery mechanism managed by the registrar would fix that.
-- **Cost.** On Ethereum mainnet every action costs gas. A Layer 2 network or a permissioned blockchain would make this much cheaper to run for real.
-- **Standards.** It would be great to expose careers as W3C Verifiable Credentials, in line with the European EBSI initiative.
-- **More than one university.** Extending the model to several universities would open the door to transfers and credit recognition between them.
-
----
-
-## About me
-
-I'm **Kristian Xhani**, and this was my bachelor's thesis in Computer Science. If you have questions, ideas or just want to chat about it, feel free to open an issue.
