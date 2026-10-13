@@ -31,7 +31,7 @@ export default function Connetti() {
       <header className="flex items-center justify-between px-5 py-4 md:px-8">
         <Logo />
         <Link href="/" className="text-[13px] text-testo-3">
-          ← Frontespizio
+          ← Ritorna Indietro
         </Link>
       </header>
 

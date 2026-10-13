@@ -1,5 +1,3 @@
-// Tutte le letture dalla blockchain, in un posto solo.
-// Le letture fatte insieme (Promise.all) partono in UNA richiesta grazie al multicall (vedi client.ts).
 
 import { BaseError, ContractFunctionRevertedError } from "viem";
 import { carrieraAbi, corsoAbi } from "./abi-contratti";
@@ -11,7 +9,7 @@ import type { Indirizzo } from "./utils";
 // ---------- Tipi ----------
 
 export type Corso = {
-  indirizzo: Indirizzo; // indirizzo del contratto Corso
+  indirizzo: Indirizzo; 
   nome: string;
   cfu: number;
   max: number;
@@ -26,24 +24,24 @@ export type StatoEsame = "IN_ATTESA" | "ACCETTATO" | "RIFIUTATO" | "INSUFFICIENT
 export type Esame = {
   id: number; // posizione nell'array esami: serve per accettaEsame / rifiutaEsame
   nome: string;
-  voto: number; // 31 = 30 e lode
+  voto: number; 
   cfu: number;
   stato: StatoEsame;
 };
 
 export type Carriera = {
-  contratto: Indirizzo; // indirizzo del contratto CarrieraStudente
+  contratto: Indirizzo; 
   studente: Indirizzo;
   nome: string;
   cognome: string;
   tipo: "TRIENNALE" | "MAGISTRALE";
-  cfu: number; // CFU degli esami accettati
+  cfu: number; 
   soglia: number; // 180 o 120
   laureato: boolean;
   esami: Esame[];
 };
 
-// Gli enum di Solidity arrivano come numeri: 0, 1, 2…
+
 const STATI_ESAME: StatoEsame[] = ["IN_ATTESA", "ACCETTATO", "RIFIUTATO", "INSUFFICIENTE"];
 const TIPI_LAUREA = ["TRIENNALE", "MAGISTRALE"] as const;
 
@@ -69,7 +67,7 @@ export async function leggiCorso(indirizzo: Indirizzo): Promise<Corso> {
     publicClient.readContract({ ...corso, functionName: "getIscritti" }),
   ]);
 
-  // Per ogni iscritto: ha già ricevuto un voto?
+  // Per ogni iscritto ha già ricevuto un voto?
   const registrati = await Promise.all(
     iscritti.map((s) => publicClient.readContract({ ...corso, functionName: "votiRegistrati", args: [s] }))
   );
@@ -92,7 +90,7 @@ export async function leggiCorsi() {
   return corsi.reverse(); // i più recenti per primi
 }
 
-// APERTO / CHIUSO / PIENO (aperto ma senza posti liberi)
+// APERTO / CHIUSO / PIENO 
 export function statoCorso(c: Corso): Stato {
   if (c.stato === "APERTO" && c.iscritti.length >= c.max) return "PIENO";
   return c.stato;
@@ -100,8 +98,6 @@ export function statoCorso(c: Corso): Stato {
 
 // ---------- Carriere ----------
 
-// Il contratto fa revert se lo studente non esiste: per noi significa "non trovato".
-// Qualsiasi altro errore (es. nodo irraggiungibile) va invece segnalato.
 function eRevert(err: unknown) {
   return err instanceof BaseError && !!err.walk((e) => e instanceof ContractFunctionRevertedError);
 }
@@ -130,8 +126,6 @@ export async function leggiCarriera(studente: Indirizzo): Promise<Carriera | nul
   return daStudenteInfo(contratto, info);
 }
 
-// Lettura per la verifica pubblica: usa getQRCode(), la funzione del contratto Universita
-// pensata proprio per questo. Restituisce anche il blocco letto, come "prova" della lettura.
 export async function leggiVerifica(studente: Indirizzo) {
   try {
     const [info, contratto, blocco] = await Promise.all([
@@ -188,9 +182,6 @@ export type IscrittoCorso = {
   voto: number | null; // null = voto non ancora registrato
 };
 
-// Il corso con, per ogni iscritto, nome/cognome e voto letti dalla sua carriera.
-// Il contratto Corso non salva i voti: sono nella carriera, nell'esame con il nome del corso.
-// Restituisce null se l'indirizzo non è uno dei corsi creati dal contratto Universita.
 export async function leggiDettaglioCorso(indirizzo: Indirizzo) {
   const lista = await publicClient.readContract({ ...universita, functionName: "getListaCorsi" });
   if (!lista.some((c) => c.toLowerCase() === indirizzo.toLowerCase())) return null;
