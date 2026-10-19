@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   BaseError,
   ContractFunctionRevertedError,
@@ -11,8 +11,8 @@ import {
 } from "viem";
 import { publicClient } from "./client";
 import Bottone from "./components/Bottone";
-import { IconAttenzione, IconCheck, IconX } from "./icons";
-import { abbrevia, linkTransazione } from "./utils";
+import { IconAttenzione, IconCheck, IconGiu, IconX } from "./icons";
+import { abbrevia, linkTransazione, type Indirizzo } from "./utils";
 import { useWallet } from "./WalletProvider";
 
 // Un passo = una transazione da firmare.
@@ -27,14 +27,20 @@ type Fase =
   | { tipo: "inviata"; hash: Hash }
   | { tipo: "confermata"; hash: Hash; blocco: bigint }
   | { tipo: "rifiutata" }
-  | { tipo: "revert"; messaggio: string }
+  | { tipo: "revert"; messaggio: string; hash?: Hash }
   | { tipo: "gas"; saldo: string | null }
-  | { tipo: "errore"; messaggio: string };
+  | { tipo: "errore"; messaggio: string }
+  | { tipo: "interrotta" }; // la pagina è stata ricaricata prima della fine
 
-type Transazione = {
+// Un movimento = un'azione dell'utente (una o più firme), mostrata nel pannello in basso a sinistra
+type Movimento = {
+  id: number;
   passi: Passo[];
   indice: number; // passo attuale
   fase: Fase;
+  messaggioOk: string; // es. "Voto registrato on-chain"
+  ora: Date; // quando è partito
+  ripristinato?: boolean; // letto dal browser dopo un refresh: non si può più riprovare
 };
 
 type Richiesta = {
@@ -55,27 +61,120 @@ const AzioniContext = createContext<Azioni | null>(null);
 
 const FAUCET = "https://cloud.google.com/application/web3/faucet/ethereum/sepolia";
 
-function pausa(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+// Quanti movimenti tenere nel pannello
+const MAX_MOVIMENTI = 10;
 
 // Messaggi italiani per gli errori "custom" di OpenZeppelin
 const erroriNoti: Record<string, string> = {
   AccessControlUnauthorizedAccount: "Il tuo indirizzo non ha il ruolo necessario per questa operazione",
 };
 
+// ---------- Salvataggio nel browser ----------
+// I movimenti restano dopo un refresh. Ogni indirizzo ha il suo elenco.
+// Le funzioni "invia" non si possono salvare: dopo un refresh il Riprova non è disponibile.
+
+type MovimentoSalvato = Omit<Movimento, "passi" | "ora"> & { etichette: string[]; ora: string };
+
+function chiave(indirizzo: Indirizzo) {
+  return "cattedra-movimenti-" + indirizzo.toLowerCase();
+}
+
+function salva(indirizzo: Indirizzo, lista: Movimento[]) {
+  const dati: MovimentoSalvato[] = lista.map(({ passi, ora, ...resto }) => ({
+    ...resto,
+    etichette: passi.map((p) => p.etichetta),
+    ora: ora.toISOString(),
+  }));
+  try {
+    // JSON non conosce i bigint (numero del blocco): li salviamo come testo
+    localStorage.setItem(chiave(indirizzo), JSON.stringify(dati, (_, v) => (typeof v === "bigint" ? String(v) : v)));
+  } catch {
+    // Storage non disponibile (es. finestra privata): pazienza, il pannello funziona lo stesso
+  }
+}
+
+function carica(indirizzo: Indirizzo): Movimento[] {
+  try {
+    const testo = localStorage.getItem(chiave(indirizzo));
+    if (!testo) return [];
+
+    return (JSON.parse(testo) as MovimentoSalvato[]).map(({ etichette, ora, ...resto }) => {
+      let fase = resto.fase;
+      if (fase.tipo === "confermata") fase = { ...fase, blocco: BigInt(fase.blocco) };
+      // Era in attesa della firma: dopo il refresh non sappiamo se è stata firmata
+      if (fase.tipo === "firma") fase = { tipo: "interrotta" };
+
+      return {
+        ...resto,
+        fase,
+        passi: etichette.map((etichetta) => ({
+          etichetta,
+          invia: () => Promise.reject(new Error("Ripeti l'azione dalla pagina")),
+        })),
+        ora: new Date(ora),
+        ripristinato: true,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+function inCorso(m: Movimento) {
+  return m.fase.tipo === "firma" || m.fase.tipo === "inviata";
+}
+
+function fallito(m: Movimento) {
+  return !inCorso(m) && m.fase.tipo !== "confermata";
+}
+
 export default function AzioniProvider({ children }: { children: React.ReactNode }) {
   const { indirizzo } = useWallet();
 
-  const [tx, setTx] = useState<Transazione | null>(null);
+  // I movimenti (il più recente per primo) insieme all'indirizzo a cui appartengono
+  const [movimenti, setMovimenti] = useState<{ per: Indirizzo | null; lista: Movimento[] }>({ per: null, lista: [] });
+  const [pannelloAperto, setPannelloAperto] = useState(false);
   const [richiesta, setRichiesta] = useState<Richiesta | null>(null);
   const [messaggioToast, setMessaggioToast] = useState<string | null>(null);
 
-  // Funzioni per "rispondere" a chi ha chiamato esegui() / conferma()
-  const risolviTx = useRef<((ok: boolean) => void) | null>(null);
+  // Per ogni movimento, la funzione che "risponde" a chi ha chiamato esegui()
+  const risolutori = useRef(new Map<number, (ok: boolean) => void>());
   const risolviConferma = useRef<((ok: boolean) => void) | null>(null);
-  const messaggioOk = useRef("");
   const timerToast = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // È cambiato l'account (o la pagina è appena stata aperta): carichiamo i suoi movimenti salvati
+  if (movimenti.per !== indirizzo) {
+    setMovimenti({ per: indirizzo, lista: indirizzo ? carica(indirizzo) : [] });
+  }
+
+  // A ogni cambiamento salviamo l'elenco nel browser
+  useEffect(() => {
+    if (movimenti.per) salva(movimenti.per, movimenti.lista);
+  }, [movimenti]);
+
+  // Dopo un refresh: le transazioni che erano "inviate" le ricontrolliamo sulla blockchain
+  useEffect(() => {
+    for (const m of movimenti.lista) {
+      if (!m.ripristinato || m.fase.tipo !== "inviata") continue;
+      const hash = m.fase.hash;
+
+      publicClient
+        .waitForTransactionReceipt({ hash })
+        .then((ricevuta) => {
+          if (ricevuta.status === "reverted") {
+            aggiorna(m.id, m.indice, { tipo: "revert", messaggio: "Transazione annullata dal contratto", hash });
+          } else if (m.indice < m.passi.length - 1) {
+            // Confermata, ma le firme successive non sono mai partite
+            aggiorna(m.id, m.indice, { tipo: "interrotta" });
+          } else {
+            aggiorna(m.id, m.indice, { tipo: "confermata", hash, blocco: ricevuta.blockNumber });
+          }
+        })
+        .catch(() => {});
+    }
+    // Solo quando si caricano i movimenti di un indirizzo, non a ogni aggiornamento
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movimenti.per]);
 
   // ---------- Toast ----------
 
@@ -99,44 +198,59 @@ export default function AzioniProvider({ children }: { children: React.ReactNode
     risolviConferma.current?.(ok);
   }
 
-  // ---------- Transazioni ----------
+  // ---------- Movimenti ----------
 
-  function esegui(passi: Passo[], messaggio: string) {
-    messaggioOk.current = messaggio;
+  // Cambia la fase (e il passo) di un movimento
+  function aggiorna(id: number, indice: number, fase: Fase) {
+    setMovimenti((s) => ({ ...s, lista: s.lista.map((m) => (m.id === id ? { ...m, indice, fase } : m)) }));
+  }
+
+  // Avvia un movimento: NON blocca la pagina, l'avanzamento si vede nel pannello.
+  // La promessa si risolve con true quando tutte le firme sono confermate
+  // (anche dopo un "Riprova"), con false se l'utente rimuove il movimento fallito.
+  function esegui(passi: Passo[], messaggioOk: string) {
+    // Id unico anche rispetto ai movimenti salvati prima di un refresh
+    const id = Date.now() + Math.random();
+    const nuovo: Movimento = { id, passi, indice: 0, fase: { tipo: "firma" }, messaggioOk, ora: new Date() };
+
+    setMovimenti((s) => ({ ...s, lista: [nuovo, ...s.lista].slice(0, MAX_MOVIMENTI) }));
+    setPannelloAperto(true);
+
     return new Promise<boolean>((risolvi) => {
-      risolviTx.current = risolvi;
-      eseguiDa(passi, 0);
+      risolutori.current.set(id, risolvi);
+      eseguiDa(id, passi, 0, messaggioOk);
     });
   }
 
-  // Esegue i passi uno dopo l'altro, a partire da "inizio"
-  async function eseguiDa(passi: Passo[], inizio: number) {
+  // Esegue i passi di un movimento uno dopo l'altro, a partire da "inizio"
+  async function eseguiDa(id: number, passi: Passo[], inizio: number, messaggioOk: string) {
     for (let i = inizio; i < passi.length; i++) {
-      setTx({ passi, indice: i, fase: { tipo: "firma" } });
+      aggiorna(id, i, { tipo: "firma" });
+      let hash: Hash | undefined;
 
       try {
-        const hash = await passi[i].invia(); // simulazione + firma in MetaMask
-        setTx({ passi, indice: i, fase: { tipo: "inviata", hash } });
+        hash = await passi[i].invia(); // simulazione + firma in MetaMask
+        aggiorna(id, i, { tipo: "inviata", hash });
 
         const ricevuta = await publicClient.waitForTransactionReceipt({ hash });
         if (ricevuta.status === "reverted") {
-          setTx({ passi, indice: i, fase: { tipo: "revert", messaggio: "Transazione annullata dal contratto" } });
+          aggiorna(id, i, { tipo: "revert", messaggio: "Transazione annullata dal contratto", hash });
+          setPannelloAperto(true);
           return;
         }
 
-        setTx({ passi, indice: i, fase: { tipo: "confermata", hash, blocco: ricevuta.blockNumber } });
-
-        // Se ci sono altre firme, lasciamo vedere la conferma un attimo
-        if (i < passi.length - 1) await pausa(1300);
+        aggiorna(id, i, { tipo: "confermata", hash, blocco: ricevuta.blockNumber });
       } catch (err) {
-        setTx({ passi, indice: i, fase: await faseErrore(err) });
+        aggiorna(id, i, await faseErrore(err));
+        setPannelloAperto(true); // l'errore deve vedersi anche se il pannello era chiuso
         return;
       }
     }
 
     // Tutti i passi confermati: chi ha chiamato esegui() può ricaricare i dati
-    risolviTx.current?.(true);
-    risolviTx.current = null;
+    toast(messaggioOk);
+    risolutori.current.get(id)?.(true);
+    risolutori.current.delete(id);
   }
 
   // Capisce che tipo di errore è arrivato da viem / MetaMask
@@ -167,28 +281,31 @@ export default function AzioniProvider({ children }: { children: React.ReactNode
     return { tipo: "errore", messaggio: err instanceof Error ? err.message : "Errore sconosciuto" };
   }
 
-  function chiudiTx() {
-    const completata = tx?.fase.tipo === "confermata" && tx.indice === tx.passi.length - 1;
-    setTx(null);
-
-    if (completata) {
-      toast(messaggioOk.current);
-    } else {
-      // Chiusa dopo un errore: l'azione non è andata a buon fine
-      risolviTx.current?.(false);
-      risolviTx.current = null;
-    }
+  // Riparte dal passo che è fallito
+  function riprova(m: Movimento) {
+    eseguiDa(m.id, m.passi, m.indice, m.messaggioOk);
   }
 
-  function riprova() {
-    if (tx) eseguiDa(tx.passi, tx.indice);
+  // Toglie un movimento dal pannello. Se era fallito, l'azione non è andata a buon fine.
+  function rimuovi(id: number) {
+    setMovimenti((s) => ({ ...s, lista: s.lista.filter((m) => m.id !== id) }));
+    risolutori.current.get(id)?.(false);
+    risolutori.current.delete(id);
   }
 
   return (
     <AzioniContext.Provider value={{ esegui, conferma, toast }}>
       {children}
       {richiesta && <FinestraConferma richiesta={richiesta} onRisposta={rispondiConferma} />}
-      {tx && <FinestraTransazione tx={tx} onChiudi={chiudiTx} onRiprova={riprova} />}
+      {movimenti.lista.length > 0 && (
+        <PannelloMovimenti
+          movimenti={movimenti.lista}
+          aperto={pannelloAperto}
+          onApri={setPannelloAperto}
+          onRiprova={riprova}
+          onRimuovi={rimuovi}
+        />
+      )}
       {messaggioToast && <Toast messaggio={messaggioToast} />}
     </AzioniContext.Provider>
   );
@@ -202,16 +319,7 @@ export function useAzioni() {
   return azioni;
 }
 
-// ---------- Parti grafiche ----------
-
-// Sfondo scuro sfocato dietro le finestre
-function Sfondo({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-60 flex animate-comparsa items-center justify-center bg-navy/50 p-5 backdrop-blur-sm">
-      {children}
-    </div>
-  );
-}
+// ---------- Finestra di conferma ----------
 
 function FinestraConferma({
   richiesta,
@@ -221,7 +329,7 @@ function FinestraConferma({
   onRisposta: (ok: boolean) => void;
 }) {
   return (
-    <Sfondo>
+    <div className="fixed inset-0 z-60 flex animate-comparsa items-center justify-center bg-navy/50 p-5 backdrop-blur-sm">
       <div className="w-full max-w-[420px] rounded-[18px] bg-white p-[26px] shadow-[0_30px_70px_rgba(10,30,61,.3)]">
         <h2 className="mb-2 font-heading text-[19px] font-bold">{richiesta.titolo}</h2>
         <p className="mb-3.5 text-sm leading-[1.55] text-testo-2">{richiesta.testo}</p>
@@ -244,230 +352,190 @@ function FinestraConferma({
           </Bottone>
         </div>
       </div>
-    </Sfondo>
+    </div>
   );
 }
 
-function FinestraTransazione({
-  tx,
-  onChiudi,
-  onRiprova,
-}: {
-  tx: Transazione;
-  onChiudi: () => void;
-  onRiprova: () => void;
-}) {
-  const { fase, passi, indice } = tx;
-  const etichetta = passi[indice].etichetta;
-  const ultimo = indice === passi.length - 1;
+// ---------- Pannello dei movimenti (in basso a sinistra) ----------
 
-  // Colore delle 3 barre (Firma, Invio, Conferma)
-  const avanzamento = { firma: 0, inviata: 1, confermata: 2 } as Record<string, number>;
-  const punto = avanzamento[fase.tipo]; // undefined se c'è un errore
-  function coloreBarra(i: number) {
-    if (punto === undefined) return i === 0 ? "bg-rosso" : "bg-bordo-medio";
-    if (fase.tipo === "confermata" || i < punto) return "bg-verde";
-    if (i === punto) return "bg-accento";
-    return "bg-bordo-medio";
+type PropsPannello = {
+  movimenti: Movimento[];
+  aperto: boolean;
+  onApri: (aperto: boolean) => void;
+  onRiprova: (m: Movimento) => void;
+  onRimuovi: (id: number) => void;
+};
+
+function PannelloMovimenti({ movimenti, aperto, onApri, onRiprova, onRimuovi }: PropsPannello) {
+  const attivi = movimenti.filter(inCorso).length;
+  const falliti = movimenti.filter(fallito).length;
+
+  // Chiuso: solo una "pillola" con il riepilogo
+  if (!aperto) {
+    return (
+      <button
+        type="button"
+        onClick={() => onApri(true)}
+        className="fixed bottom-4 left-4 z-50 flex animate-comparsa items-center gap-2.5 rounded-full border border-bordo bg-white py-2.5 pr-4 pl-3 text-[13px] font-semibold shadow-[0_12px_32px_rgba(10,30,61,.16)]"
+      >
+        {attivi > 0 ? (
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-accento-chiaro border-t-accento" />
+        ) : (
+          <span className={"h-2.5 w-2.5 rounded-full " + (falliti > 0 ? "bg-rosso" : "bg-verde")} />
+        )}
+        {attivi > 0 ? `${attivi} in corso` : "Ultimi movimenti"}
+        {falliti > 0 && (
+          <span className="rounded-full bg-rosso-chiaro px-2 py-0.5 text-[11px] text-rosso">{falliti} non riusciti</span>
+        )}
+      </button>
+    );
   }
 
   return (
-    <Sfondo>
-      <div className="w-full max-w-[440px] overflow-hidden rounded-[18px] bg-white shadow-[0_30px_70px_rgba(10,30,61,.3)]">
-        {/* Intestazione */}
-        <div className="flex items-center justify-between border-b border-bordo px-[22px] py-4">
-          <span className="text-[13px] font-semibold text-testo-2">
-            {passi.length > 1 ? `Firma ${indice + 1} di ${passi.length}` : "Transazione"}
-          </span>
-          <span className="flex items-center gap-1.5 text-xs text-testo-3">
-            <span className="h-[7px] w-[7px] rounded-full bg-verde" />
-            Sepolia
-          </span>
+    <div className="fixed right-4 bottom-4 left-4 z-50 flex max-h-[70vh] animate-comparsa flex-col overflow-hidden rounded-[16px] border border-bordo bg-white shadow-[0_20px_50px_rgba(10,30,61,.2)] sm:right-auto sm:w-[380px]">
+      {/* Intestazione */}
+      <div className="flex items-center justify-between border-b border-bordo px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="font-heading text-[15px] font-semibold">Ultimi movimenti</span>
+          {attivi > 0 && <span className="text-xs font-semibold text-accento">{attivi} in corso</span>}
         </div>
-
-        {/* Barre di avanzamento */}
-        <div className="flex gap-1.5 px-[22px] pt-4">
-          {["Firma", "Invio", "Conferma"].map((nome, i) => (
-            <div key={nome} className="flex-1">
-              <div className={"h-1 rounded-full " + coloreBarra(i)} />
-              <div className="mt-1.5 text-[11px] text-muto">{nome}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="p-[26px] text-center">
-          {fase.tipo === "firma" && (
-            <>
-              <Rotella colore="border-[#FDEBD6] border-t-metamask" />
-              <Titolo>Conferma in MetaMask</Titolo>
-              <Testo>In attesa della tua firma nel popup del wallet.</Testo>
-              <div className="rounded-[10px] bg-sfondo px-3.5 py-3 text-left">
-                <div className="mb-1 text-[11px] font-semibold tracking-[.05em] text-muto">AZIONE</div>
-                <div className="text-sm font-semibold">{etichetta}</div>
-              </div>
-            </>
-          )}
-
-          {fase.tipo === "inviata" && (
-            <>
-              <Rotella colore="border-accento-chiaro border-t-accento" />
-              <Titolo>Transazione inviata</Titolo>
-              <Testo>In attesa di inclusione in un blocco…</Testo>
-              <Dettagli etichetta={etichetta} hash={fase.hash} />
-            </>
-          )}
-
-          {fase.tipo === "confermata" && (
-            <>
-              <Cerchio colore="bg-verde-chiaro">
-                <IconCheck className="h-[26px] w-[26px] text-verde-scuro" />
-              </Cerchio>
-              <Titolo>Confermata</Titolo>
-              <Testo>{etichetta}</Testo>
-              <Dettagli hash={fase.hash} blocco={fase.blocco} />
-              {ultimo ? (
-                <Bottone onClick={onChiudi} className="mt-4 w-full">
-                  Chiudi
-                </Bottone>
-              ) : (
-                <p className="mt-4 animate-pulse text-[13px] font-semibold text-accento">
-                  Preparazione della firma successiva…
-                </p>
-              )}
-            </>
-          )}
-
-          {fase.tipo === "rifiutata" && (
-            <>
-              <Cerchio colore="bg-rosso-chiaro">
-                <IconX className="h-6 w-6 text-rosso" />
-              </Cerchio>
-              <Titolo>Firma rifiutata</Titolo>
-              <Testo>Hai annullato la firma in MetaMask. Nessun dato è stato scritto on-chain.</Testo>
-              <div className="flex gap-2.5">
-                <Bottone variante="scuro" onClick={onRiprova} className="flex-1">
-                  Riprova
-                </Bottone>
-                <Bottone variante="secondario" onClick={onChiudi} className="flex-1">
-                  Annulla
-                </Bottone>
-              </div>
-            </>
-          )}
-
-          {fase.tipo === "revert" && (
-            <>
-              <Cerchio colore="bg-rosso-chiaro">
-                <IconAttenzione className="h-6 w-6 text-rosso" />
-              </Cerchio>
-              <Titolo>Rifiutata dal contratto</Titolo>
-              <Testo>La transazione è stata annullata (revert). Nessun dato modificato.</Testo>
-              <div className="mb-[18px] rounded-[10px] bg-rosso-chiaro px-3.5 py-3 text-left">
-                <div className="mb-1 text-[11px] font-semibold tracking-[.05em] text-[#A2302A]">
-                  MESSAGGIO DEL CONTRATTO
-                </div>
-                <div className="font-mono text-[13px] break-words text-rosso-scuro">{fase.messaggio}</div>
-              </div>
-              <Bottone variante="scuro" onClick={onChiudi} className="w-full">
-                Chiudi
-              </Bottone>
-            </>
-          )}
-
-          {fase.tipo === "gas" && (
-            <>
-              <Cerchio colore="bg-ambra-chiaro">
-                <IconAttenzione className="h-6 w-6 text-ambra" />
-              </Cerchio>
-              <Titolo>ETH di test insufficienti</Titolo>
-              <Testo>
-                Il saldo del wallet non copre il gas della transazione. Ricarica SepoliaETH gratuitamente
-                da un faucet.
-              </Testo>
-              {fase.saldo !== null && (
-                <div className="mb-[18px] flex justify-between rounded-[10px] bg-sfondo px-3.5 py-3 text-[13px]">
-                  <span className="text-testo-3">Saldo attuale</span>
-                  <span className="font-mono">{Number(fase.saldo).toFixed(4)} SepoliaETH</span>
-                </div>
-              )}
-              <div className="flex gap-2.5">
-                <a
-                  href={FAUCET}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 rounded-[11px] bg-accento py-[13px] text-sm font-semibold text-white"
-                >
-                  Apri faucet ↗
-                </a>
-                <Bottone variante="secondario" onClick={onChiudi} className="flex-1">
-                  Chiudi
-                </Bottone>
-              </div>
-            </>
-          )}
-
-          {fase.tipo === "errore" && (
-            <>
-              <Cerchio colore="bg-rosso-chiaro">
-                <IconAttenzione className="h-6 w-6 text-rosso" />
-              </Cerchio>
-              <Titolo>Qualcosa è andato storto</Titolo>
-              <p className="mb-[18px] text-sm break-words text-testo-3">{fase.messaggio}</p>
-              <div className="flex gap-2.5">
-                <Bottone variante="scuro" onClick={onRiprova} className="flex-1">
-                  Riprova
-                </Bottone>
-                <Bottone variante="secondario" onClick={onChiudi} className="flex-1">
-                  Chiudi
-                </Bottone>
-              </div>
-            </>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => onApri(false)}
+          aria-label="Riduci"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muto"
+        >
+          <IconGiu className="h-4 w-4" />
+        </button>
       </div>
-    </Sfondo>
+
+      {/* Elenco, il più recente in alto */}
+      <div className="overflow-y-auto">
+        {movimenti.map((m) => (
+          <RigaMovimento key={m.id} m={m} onRiprova={() => onRiprova(m)} onRimuovi={() => onRimuovi(m.id)} />
+        ))}
+      </div>
+    </div>
   );
 }
 
-// Riquadro grigio con hash (link a Etherscan) e numero del blocco
-function Dettagli({ etichetta, hash, blocco }: { etichetta?: string; hash: Hash; blocco?: bigint }) {
+function RigaMovimento({ m, onRiprova, onRimuovi }: { m: Movimento; onRiprova: () => void; onRimuovi: () => void }) {
+  const { fase, passi, indice } = m;
+  const hash = "hash" in fase ? fase.hash : undefined;
+  const ora = m.ora.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+
   return (
-    <div className="flex flex-col gap-2 rounded-[10px] bg-sfondo px-3.5 py-3 text-left">
-      {etichetta && <div className="text-[13px] font-semibold">{etichetta}</div>}
-      <div className="flex justify-between">
-        <span className="text-xs text-muto">Tx hash</span>
-        <a href={linkTransazione(hash)} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-accento">
-          {abbrevia(hash)} ↗
-        </a>
-      </div>
-      {blocco !== undefined && (
-        <div className="flex justify-between">
-          <span className="text-xs text-muto">Blocco</span>
-          <span className="font-mono text-xs">#{blocco.toLocaleString("it-IT")}</span>
+    <div className="flex gap-3 border-b border-riga px-4 py-3 last:border-b-0">
+      <IconaFase fase={fase} />
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-[13px] font-semibold">{passi[indice].etichetta}</span>
+          <span className="shrink-0 text-[11px] text-muto">{ora}</span>
         </div>
+
+        {passi.length > 1 && (
+          <div className="text-[11px] text-muto">
+            Firma {indice + 1} di {passi.length}
+          </div>
+        )}
+
+        <DescrizioneFase fase={fase} />
+
+        {hash && (
+          <a
+            href={linkTransazione(hash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-block font-mono text-[11px] text-accento"
+          >
+            {abbrevia(hash)} ↗
+          </a>
+        )}
+
+        {/* Esito negativo: Riprova / Rimuovi */}
+        {fallito(m) && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {m.ripristinato ? (
+              <span className="text-[11px] text-muto">Pagina ricaricata: per riprovare ripeti l&apos;azione.</span>
+            ) : (
+              <Bottone piccolo variante="scuro" onClick={onRiprova}>
+                Riprova
+              </Bottone>
+            )}
+            <Bottone piccolo variante="secondario" onClick={onRimuovi}>
+              Rimuovi
+            </Bottone>
+          </div>
+        )}
+      </div>
+
+      {fase.tipo === "confermata" && (
+        <button type="button" onClick={onRimuovi} aria-label="Rimuovi" className="self-start text-muto">
+          <IconX className="h-3.5 w-3.5" />
+        </button>
       )}
     </div>
   );
 }
 
-function Rotella({ colore }: { colore: string }) {
-  return <div className={"mx-auto mb-[18px] h-[54px] w-[54px] animate-spin rounded-full border-4 " + colore} />;
-}
-
-function Cerchio({ colore, children }: { colore: string; children: React.ReactNode }) {
+function IconaFase({ fase }: { fase: Fase }) {
+  if (fase.tipo === "firma") {
+    return <span className="mt-0.5 h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-[#FDEBD6] border-t-metamask" />;
+  }
+  if (fase.tipo === "inviata") {
+    return <span className="mt-0.5 h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-accento-chiaro border-t-accento" />;
+  }
+  if (fase.tipo === "confermata") {
+    return (
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-verde-chiaro">
+        <IconCheck className="h-3 w-3 text-verde-scuro" />
+      </span>
+    );
+  }
   return (
-    <div className={"mx-auto mb-[18px] flex h-[54px] w-[54px] items-center justify-center rounded-full " + colore}>
-      {children}
-    </div>
+    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rosso-chiaro">
+      <IconX className="h-3 w-3 text-rosso" />
+    </span>
   );
 }
 
-function Titolo({ children }: { children: React.ReactNode }) {
-  return <h2 className="mb-1.5 font-heading text-[19px] font-bold">{children}</h2>;
-}
-
-function Testo({ children }: { children: React.ReactNode }) {
-  return <p className="mb-4 text-sm leading-normal text-testo-3">{children}</p>;
+// Una riga che spiega lo stato (e, se è fallito, il motivo)
+function DescrizioneFase({ fase }: { fase: Fase }) {
+  switch (fase.tipo) {
+    case "firma":
+      return <p className="text-xs text-[#9A6A2E]">Conferma la firma in MetaMask…</p>;
+    case "inviata":
+      return <p className="text-xs text-testo-3">Inviata, in attesa di inclusione in un blocco…</p>;
+    case "confermata":
+      return <p className="text-xs text-verde-scuro">Confermata · blocco #{fase.blocco.toLocaleString("it-IT")}</p>;
+    case "rifiutata":
+      return <p className="text-xs text-rosso">Firma rifiutata in MetaMask: nessun dato scritto on-chain.</p>;
+    case "revert":
+      return (
+        <p className="text-xs break-words text-rosso">
+          Rifiutata dal contratto: <span className="font-mono">{fase.messaggio}</span>
+        </p>
+      );
+    case "gas":
+      return (
+        <p className="text-xs text-rosso">
+          ETH di test insufficienti per il gas
+          {fase.saldo !== null && <> (saldo {Number(fase.saldo).toFixed(4)} SepoliaETH)</>}.{" "}
+          <a href={FAUCET} target="_blank" rel="noopener noreferrer" className="font-semibold text-accento">
+            Apri faucet ↗
+          </a>
+        </p>
+      );
+    case "errore":
+      return <p className="text-xs break-words text-rosso">Errore: {fase.messaggio}</p>;
+    case "interrotta":
+      return (
+        <p className="text-xs text-rosso">
+          Interrotta dal ricaricamento della pagina: controlla su Etherscan se è andata a buon fine.
+        </p>
+      );
+  }
 }
 
 function Toast({ messaggio }: { messaggio: string }) {

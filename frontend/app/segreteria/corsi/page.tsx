@@ -17,9 +17,9 @@ import ErroreLettura from "../../components/ErroreLettura";
 import Scheletro from "../../components/Scheletro";
 import StatoVuoto from "../../components/StatoVuoto";
 import { IconBookOpen, IconGiu } from "../../icons";
-import { leggiCorsi, leggiProfessori, statoCorso, type Corso } from "../../letture";
+import { leggiCorsi, leggiProfessori, nomeCompleto, statoCorso, type Corso, type Professore } from "../../letture";
 import { useDati } from "../../useDati";
-import { abbrevia, type Indirizzo } from "../../utils";
+import { abbrevia, iniziali, type Indirizzo } from "../../utils";
 import { useWallet } from "../../WalletProvider";
 
 type Filtro = "tutti" | "aperti" | "chiusi";
@@ -108,9 +108,9 @@ function RigaCorso({ corso }: { corso: Corso }) {
     >
       <div className="min-w-0 flex-[1_1_200px]">
         <div className="mb-[5px] text-[15px] font-semibold">{corso.nome}</div>
-        <div className="flex items-center gap-[7px] font-mono text-xs text-muto" title={corso.professore}>
+        <div className="flex items-center gap-[7px] text-xs text-muto" title={corso.professore}>
           <Avatar indirizzo={corso.professore} dimensione={14} />
-          {abbrevia(corso.professore)}
+          {corso.nomeProfessore || <span className="font-mono">{abbrevia(corso.professore)}</span>}
         </div>
       </div>
       <div className="min-w-11 text-center">
@@ -133,7 +133,7 @@ function RigaCorso({ corso }: { corso: Corso }) {
   );
 }
 
-function CreaCorso({ professori, onCreato }: { professori: readonly Indirizzo[]; onCreato: () => void }) {
+function CreaCorso({ professori, onCreato }: { professori: Professore[]; onCreato: () => void }) {
   const { indirizzo: io } = useWallet();
   const { esegui } = useAzioni();
 
@@ -144,7 +144,7 @@ function CreaCorso({ professori, onCreato }: { professori: readonly Indirizzo[];
   const [tendinaAperta, setTendinaAperta] = useState(false);
 
   // Se non è stato scelto nessuno (o quello scelto non è più professore) usiamo il primo
-  const professore = scelto && professori.includes(scelto) ? scelto : professori[0];
+  const professore = professori.find((p) => p.indirizzo === scelto) ?? professori[0];
   const nessunProfessore = professori.length === 0;
 
   const maxNumero = Number(max);
@@ -161,7 +161,7 @@ function CreaCorso({ professori, onCreato }: { professori: readonly Indirizzo[];
       [
         {
           etichetta: `Crea corso ${n} · ${cfu} CFU · max ${maxNumero}`,
-          invia: () => scriviContratto(io, "creaCorso", [n, BigInt(cfu), BigInt(maxNumero), professore]),
+          invia: () => scriviContratto(io, "creaCorso", [n, BigInt(cfu), BigInt(maxNumero), professore.indirizzo]),
         },
       ],
       "Corso creato"
@@ -230,10 +230,7 @@ function CreaCorso({ professori, onCreato }: { professori: readonly Indirizzo[];
             className="flex w-full items-center gap-[9px] rounded-[10px] border border-bordo-forte bg-campo px-[13px] py-2.5"
           >
             {professore ? (
-              <>
-                <Avatar indirizzo={professore} dimensione={20} />
-                <span className="flex-1 text-left font-mono text-[13px]">{abbrevia(professore)}</span>
-              </>
+              <RigaProfessore p={professore} />
             ) : (
               <span className="flex-1 text-left text-[13px] text-segnaposto">Nessun professore</span>
             )}
@@ -246,20 +243,19 @@ function CreaCorso({ professori, onCreato }: { professori: readonly Indirizzo[];
               <div className="absolute top-[calc(100%+6px)] right-0 left-0 z-20 rounded-[11px] border border-bordo bg-white p-1.5 shadow-[0_16px_40px_rgba(10,30,61,.14)]">
                 {professori.map((p) => (
                   <button
-                    key={p}
+                    key={p.indirizzo}
                     type="button"
                     onClick={() => {
-                      setScelto(p);
+                      setScelto(p.indirizzo);
                       setTendinaAperta(false);
                     }}
-                    title={p}
+                    title={p.indirizzo}
                     className={
                       "flex w-full items-center gap-[9px] rounded-lg px-2.5 py-[9px] " +
-                      (p === professore ? "bg-accento-tenue" : "")
+                      (p.indirizzo === professore?.indirizzo ? "bg-accento-tenue" : "")
                     }
                   >
-                    <Avatar indirizzo={p} dimensione={20} />
-                    <span className="flex-1 text-left font-mono text-[13px]">{abbrevia(p)}</span>
+                    <RigaProfessore p={p} />
                   </button>
                 ))}
               </div>
@@ -275,5 +271,16 @@ function CreaCorso({ professori, onCreato }: { professori: readonly Indirizzo[];
         </p>
       </div>
     </Card>
+  );
+}
+
+// Avatar + "Nome Cognome" + indirizzo abbreviato (usato nella tendina dei professori)
+function RigaProfessore({ p }: { p: Professore }) {
+  return (
+    <>
+      <Avatar indirizzo={p.indirizzo} testo={iniziali(p.nome, p.cognome)} dimensione={24} />
+      <span className="flex-1 text-left text-[13px] font-semibold">{nomeCompleto(p)}</span>
+      <span className="font-mono text-[11px] text-muto">{abbrevia(p.indirizzo)}</span>
+    </>
   );
 }

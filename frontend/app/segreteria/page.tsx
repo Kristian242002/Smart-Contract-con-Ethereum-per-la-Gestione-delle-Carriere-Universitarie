@@ -8,7 +8,7 @@ import ErroreLettura from "../components/ErroreLettura";
 import Indirizzo from "../components/Indirizzo";
 import Scheletro from "../components/Scheletro";
 import { IconCheck } from "../icons";
-import { leggiCorsi, leggiProfessori, statoCorso, type Corso } from "../letture";
+import { leggiCorsi, leggiProfessori, statoCorso, type Corso, type Professore } from "../letture";
 import { useDati } from "../useDati";
 
 export default function Panoramica() {
@@ -18,7 +18,7 @@ export default function Panoramica() {
     return { professori, corsi };
   }, []);
 
-  let professori: readonly string[] = [];
+  let professori: Professore[] = [];
   let corsi: Corso[] = [];
   if (dati) {
     professori = dati.professori;
@@ -124,7 +124,7 @@ export default function Panoramica() {
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-[18px]">
           <Card>
             <h2 className="mb-1 font-heading text-base font-semibold">Cerca studente</h2>
-            <p className="mb-3 text-[13px] text-testo-3">Usa l'indirizzo del wallet per cercare lo studente</p>
+            <p className="mb-3 text-[13px] text-testo-3">Usa l&apos;indirizzo del wallet per cercare lo studente</p>
             <CercaCarriera />
           </Card>
 

@@ -40,35 +40,63 @@ contract UniversitaTest is Test {
 
     function test_aggiungiProfessore() public {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         assertTrue(universita.isProfessore(professore1));
     }
 
     function test_aggiungiProfessore_soloSegreteria() public {
         vm.prank(estraneo);
         vm.expectRevert();
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
     }
 
     function test_aggiungiProfessore_giaRegistrato() public {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         vm.prank(segreteria);
         vm.expectRevert("Professore gia' registrato");
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
     }
 
     function test_aggiungiProfessore_indirizzoNullo() public {
         vm.prank(segreteria);
         vm.expectRevert("Indirizzo professore non valido");
-        universita.aggiungiProfessore(address(0));
+        universita.aggiungiProfessore(address(0), "Mario", "Rossi");
+    }
+
+    function test_aggiungiProfessore_nomeCognomeSalvati() public {
+        vm.prank(segreteria);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
+        Universita.Professore memory p = universita.getProfessore(professore1);
+        assertEq(p.nome, "Mario");
+        assertEq(p.cognome, "Rossi");
+    }
+
+    function test_aggiungiProfessore_nomeVuoto() public {
+        vm.prank(segreteria);
+        vm.expectRevert("Nome e cognome obbligatori");
+        universita.aggiungiProfessore(professore1, "", "Rossi");
+    }
+
+    function test_aggiungiProfessore_cognomeVuoto() public {
+        vm.prank(segreteria);
+        vm.expectRevert("Nome e cognome obbligatori");
+        universita.aggiungiProfessore(professore1, "Mario", "");
+    }
+
+    function test_rimuoviProfessore_nomeRestaSalvato() public {
+        vm.prank(segreteria);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
+        vm.prank(segreteria);
+        universita.rimuoviProfessore(professore1);
+        assertEq(universita.getProfessore(professore1).nome, "Mario");
     }
 
     // ─── rimuoviProfessore ───────────────────────────────────────
 
     function test_rimuoviProfessore() public {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         vm.prank(segreteria);
         universita.rimuoviProfessore(professore1);
         assertFalse(universita.isProfessore(professore1));
@@ -76,7 +104,7 @@ contract UniversitaTest is Test {
 
     function test_rimuoviProfessore_soloSegreteria() public {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         vm.prank(estraneo);
         vm.expectRevert();
         universita.rimuoviProfessore(professore1);
@@ -138,7 +166,7 @@ contract UniversitaTest is Test {
 
     function test_creaCorso() public {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         vm.prank(segreteria);
         address corsoAddr = universita.creaCorso("Matematica", 6, 30, professore1);
         assertTrue(corsoAddr != address(0));
@@ -150,7 +178,7 @@ contract UniversitaTest is Test {
 
     function test_creaCorso_soloSegreteria() public {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         vm.prank(estraneo);
         vm.expectRevert();
         universita.creaCorso("Matematica", 6, 30, professore1);
@@ -166,7 +194,7 @@ contract UniversitaTest is Test {
 
     function _setupBase() internal returns (address) {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         vm.prank(segreteria);
         universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
         vm.prank(segreteria);
@@ -196,11 +224,43 @@ contract UniversitaTest is Test {
         universita.iscriviStudenteACorso(studente2, corsoAddr);
     }
 
+    function test_iscriviStudenteACorso_dalProfessoreDelCorso() public {
+        address corsoAddr = _setupBase();
+        vm.prank(professore1);
+        universita.iscriviStudenteACorso(studente1, corsoAddr);
+        assertTrue(Corso(corsoAddr).isStudenteIscritto(studente1));
+    }
+
+    function test_iscriviStudenteACorso_altroProfessoreError() public {
+        address corsoAddr = _setupBase();
+        vm.prank(segreteria);
+        universita.aggiungiProfessore(professore2, "Luca", "Bianchi");
+        vm.prank(professore2);
+        vm.expectRevert("Solo la segreteria o il professore del corso possono iscrivere studenti");
+        universita.iscriviStudenteACorso(studente1, corsoAddr);
+    }
+
+    function test_iscriviStudenteACorso_professoreRimossoError() public {
+        address corsoAddr = _setupBase();
+        vm.prank(segreteria);
+        universita.rimuoviProfessore(professore1);
+        vm.prank(professore1);
+        vm.expectRevert("Solo la segreteria o il professore del corso possono iscrivere studenti");
+        universita.iscriviStudenteACorso(studente1, corsoAddr);
+    }
+
+    function test_iscriviStudenteACorso_corsoNonValido() public {
+        _setupBase();
+        vm.prank(segreteria);
+        vm.expectRevert("Corso non valido");
+        universita.iscriviStudenteACorso(studente1, address(0x1234));
+    }
+
     // ─── get ─────────────────────────────────────────────────────
 
     function test_getListaCorsi() public {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         vm.prank(segreteria);
         universita.creaCorso("AnalisiI", 6, 30, professore1);
         vm.prank(segreteria);
@@ -211,9 +271,9 @@ contract UniversitaTest is Test {
 
     function test_getListaProfessori() public {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore2);
+        universita.aggiungiProfessore(professore2, "Mario", "Rossi");
         address[] memory profs = universita.getListaProfessori();
         assertEq(profs.length, 2);
         assertEq(profs[0], professore1);
@@ -364,11 +424,30 @@ contract UniversitaTest is Test {
         universita.registraVoto(corsoAddr, studente1, 28, false);
     }
 
+    function test_registraVoto_altroProfessoreError() public {
+        address corsoAddr = _setupBase();
+        vm.prank(segreteria);
+        universita.aggiungiProfessore(professore2, "Luca", "Bianchi");
+        vm.prank(segreteria);
+        universita.iscriviStudenteACorso(studente1, corsoAddr);
+        vm.prank(segreteria);
+        universita.chiudiIscrizioniCorso(corsoAddr);
+        vm.prank(professore2);
+        vm.expectRevert("Solo il professore o la segreteria possono eseguire questa operazione");
+        universita.registraVoto(corsoAddr, studente1, 28, false);
+    }
+
+    function test_registraVoto_corsoNonValido() public {
+        vm.prank(segreteria);
+        vm.expectRevert("Corso non valido");
+        universita.registraVoto(address(0x1234), studente1, 28, false);
+    }
+
     // ─── flusso completo ─────────────────────────────────────────
 
     function test_flussoCompleto() public {
         vm.prank(segreteria);
-        universita.aggiungiProfessore(professore1);
+        universita.aggiungiProfessore(professore1, "Mario", "Rossi");
         vm.prank(segreteria);
         universita.registraStudente(studente1, CarrieraStudente.TipoLaurea.TRIENNALE, "Mario", "Rossi");
         vm.prank(segreteria);

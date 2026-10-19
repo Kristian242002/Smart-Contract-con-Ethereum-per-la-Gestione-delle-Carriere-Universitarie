@@ -216,6 +216,16 @@ export const universitaAbi = [
         "internalType": "address",
         "name": "_professore",
         "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "_nome",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_cognome",
+        "type": "string"
       }
     ],
     "name": "aggiungiProfessore",
@@ -234,6 +244,25 @@ export const universitaAbi = [
     "name": "chiudiIscrizioniCorso",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "corsiValidi",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -323,6 +352,37 @@ export const universitaAbi = [
         "internalType": "address[]",
         "name": "",
         "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_professore",
+        "type": "address"
+      }
+    ],
+    "name": "getProfessore",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "nome",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "cognome",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct Universita.Professore",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",

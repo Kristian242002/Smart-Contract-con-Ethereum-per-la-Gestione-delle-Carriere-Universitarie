@@ -20,7 +20,7 @@ const anteprimaEsami = [
 
 const passi = [
   { ruolo: "SEGRETERIA", titolo: "Registra lo studente", testo: "Viene effettuato il deploy del suo contratto CarrieraStudente."},
-  { ruolo: "SEGRETERIA", titolo: "Crea il corso e iscrive", testo: "Un contratto Corso con CFU, posti e professore; poi le iscrizioni finché c'è posto."},
+  { ruolo: "SEGRETERIA", titolo: "Crea il corso e iscrive", testo: "Un contratto Corso con CFU, posti e professore; poi le iscrizioni (anche dal professore del corso) finché c'è posto."},
   { ruolo: "SEGRETERIA", titolo: "Chiude le iscrizioni", testo: "Operazione irreversibile: da qui il corso accetta i voti."},
   { ruolo: "PROFESSORE", titolo: "Registra i voti", testo: "Un solo voto per studente, 0–30, lode solo con 30. Può farlo anche la segreteria."},
   { ruolo: "STUDENTE", titolo: "Accetta o rifiuta", testo: "I CFU accettati si sommano: alla soglia (180 o 120) la carriera risulta Laureato."},
@@ -28,7 +28,7 @@ const passi = [
 
 const ruoli = [
   { Icona: IconLandmark, nome: "Segreteria", testo: "Un solo indirizzo (chi ha fatto il deploy). Abilita professori, registra studenti, crea corsi e gestisce le iscrizioni." },
-  { Icona: IconGraduationCap, nome: "Professore", testo: "Identificato solo dall'indirizzo. Registra i voti dei corsi a lui assegnati dopo la chiusura delle iscrizioni." },
+  { Icona: IconGraduationCap, nome: "Professore", testo: "Registrato con indirizzo, nome e cognome. Iscrive studenti ai suoi corsi e ne registra i voti dopo la chiusura delle iscrizioni." },
   { Icona: IconBookOpen, nome: "Studente", testo: "Possiede un contratto carriera. Accetta o rifiuta i voti, aggiorna nome e cognome, condivide il QR di verifica." },
 ];
 

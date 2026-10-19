@@ -1,7 +1,7 @@
 "use client";
 
 // Dettaglio di un corso, usato dalla segreteria (e nel passo 6 dal professore).
-// - Corso APERTO: iscrizione studenti (solo segreteria) e chiusura delle iscrizioni
+// - Corso APERTO: iscrizione studenti (segreteria o professore del corso) e chiusura delle iscrizioni (solo segreteria)
 // - Corso CHIUSO: registrazione dei voti, uno per studente e definitivo
 
 import Link from "next/link";
@@ -91,6 +91,7 @@ function Intestazione({ corso }: { corso: Corso }) {
         </span>
         <span className="flex items-center gap-1.5">
           Professore <Avatar indirizzo={corso.professore} dimensione={14} />
+          {corso.nomeProfessore && <b className="text-navy">{corso.nomeProfessore}</b>}
           <Indirizzo indirizzo={corso.professore} className="text-navy" />
         </span>
         <span className="flex items-center gap-1.5">
@@ -126,9 +127,13 @@ type PropsStato = {
 // ---------- Corso APERTO ----------
 
 function CorsoAperto({ corso, studenti, ruolo, onCambiato }: PropsStato) {
-  const { indirizzo: io } = useWallet();
+  const { indirizzo: io, ruoli } = useWallet();
   const { esegui, conferma } = useAzioni();
   const pieno = corso.iscritti.length >= corso.max;
+
+  // Iscrive la segreteria, oppure il professore a cui è assegnato il corso
+  const mioCorso = !!io && corso.professore.toLowerCase() === io.toLowerCase();
+  const puoIscrivere = ruolo === "segreteria" ? !!ruoli?.segreteria : mioCorso && !!ruoli?.professore;
 
   async function chiudi() {
     if (!io) return;
@@ -157,7 +162,10 @@ function CorsoAperto({ corso, studenti, ruolo, onCambiato }: PropsStato) {
   return (
     <div className="flex flex-wrap items-start gap-[18px]">
       <div className="flex min-w-0 flex-[1_1_540px] flex-col gap-[18px]">
-        {ruolo === "segreteria" && <IscriviStudente corso={corso} onIscritto={onCambiato} />}
+        {puoIscrivere && <IscriviStudente corso={corso} onIscritto={onCambiato} />}
+        {ruolo === "professore" && !mioCorso && (
+          <Avviso tipo="bloccato">Questo corso non è assegnato al tuo indirizzo: sola lettura.</Avviso>
+        )}
 
         <Card>
           <div className="mb-1 flex items-baseline justify-between">
@@ -193,7 +201,7 @@ function CorsoAperto({ corso, studenti, ruolo, onCambiato }: PropsStato) {
           </Bottone>
         ) : (
           <p className="rounded-[10px] bg-sfondo p-3 text-[13px] text-testo-2">
-            Sola lettura: in attesa che la segreteria chiuda le iscrizioni.
+            La chiusura delle iscrizioni spetta alla segreteria.
           </p>
         )}
       </Card>

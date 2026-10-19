@@ -194,7 +194,7 @@ npx hardhat test
 
 The system runs on the **Sepolia** Ethereum testnet (chain ID `11155111`) and was deployed with Hardhat Ignition.
 
-**Universita:** [`0x1fFf2f10994573d2AC59de2769b4612C445825D1`](https://sepolia.etherscan.io/address/0x1fFf2f10994573d2AC59de2769b4612C445825D1)
+**Universita:** [`0xaEc4cfEC09220934c153e16784E5E92D173eE25A`](https://sepolia.etherscan.io/address/0xaEc4cfEC09220934c153e16784E5E92D173eE25A)
 
 The factory is created by the `Universita` constructor, while courses and careers are created on the fly as the system is used. Whoever deploys the contract becomes the registrar.
 

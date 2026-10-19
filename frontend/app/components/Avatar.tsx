@@ -1,7 +1,7 @@
 import { coloreAvatar } from "../utils";
 
 // Cerchio colorato generato dall'indirizzo.
-// Per gli studenti si passano le iniziali; i professori non hanno un nome.
+// Dentro si possono mostrare le iniziali (studenti e professori).
 
 type Props = {
   indirizzo: string;

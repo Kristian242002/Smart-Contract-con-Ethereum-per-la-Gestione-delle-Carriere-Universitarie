@@ -14,6 +14,7 @@ export type Corso = {
   cfu: number;
   max: number;
   professore: Indirizzo;
+  nomeProfessore: string; // "Nome Cognome" letto da Universita
   stato: "APERTO" | "CHIUSO";
   iscritti: Indirizzo[];
   voti: number; // quanti iscritti hanno già un voto registrato
@@ -49,8 +50,27 @@ const universita = { address: CONTRACT_ADDRESS, abi: universitaAbi } as const;
 
 // ---------- Professori ----------
 
-export function leggiProfessori() {
-  return publicClient.readContract({ ...universita, functionName: "getListaProfessori" });
+export type Professore = {
+  indirizzo: Indirizzo;
+  nome: string;
+  cognome: string;
+};
+
+// Nome e cognome di un professore (salvati da aggiungiProfessore)
+export async function leggiProfessore(indirizzo: Indirizzo): Promise<Professore> {
+  const dati = await publicClient.readContract({ ...universita, functionName: "getProfessore", args: [indirizzo] });
+  return { indirizzo, nome: dati.nome, cognome: dati.cognome };
+}
+
+// Tutti i professori abilitati, con nome e cognome
+export async function leggiProfessori() {
+  const indirizzi = await publicClient.readContract({ ...universita, functionName: "getListaProfessori" });
+  return Promise.all(indirizzi.map(leggiProfessore));
+}
+
+// "Mario Rossi"
+export function nomeCompleto(p: { nome: string; cognome: string }) {
+  return `${p.nome} ${p.cognome}`.trim();
 }
 
 // ---------- Corsi ----------
@@ -67,10 +87,13 @@ export async function leggiCorso(indirizzo: Indirizzo): Promise<Corso> {
     publicClient.readContract({ ...corso, functionName: "getIscritti" }),
   ]);
 
-  // Per ogni iscritto ha già ricevuto un voto?
-  const registrati = await Promise.all(
-    iscritti.map((s) => publicClient.readContract({ ...corso, functionName: "votiRegistrati", args: [s] }))
-  );
+  // Per ogni iscritto ha già ricevuto un voto? E come si chiama il professore?
+  const [registrati, prof] = await Promise.all([
+    Promise.all(
+      iscritti.map((s) => publicClient.readContract({ ...corso, functionName: "votiRegistrati", args: [s] }))
+    ),
+    leggiProfessore(professore),
+  ]);
 
   return {
     indirizzo,
@@ -78,6 +101,7 @@ export async function leggiCorso(indirizzo: Indirizzo): Promise<Corso> {
     cfu: Number(cfu),
     max: Number(max),
     professore,
+    nomeProfessore: nomeCompleto(prof),
     stato: stato === 0 ? "APERTO" : "CHIUSO",
     iscritti: [...iscritti],
     voti: registrati.filter(Boolean).length,

@@ -12,13 +12,15 @@ import Indirizzo from "../components/Indirizzo";
 import Scheletro from "../components/Scheletro";
 import StatoVuoto from "../components/StatoVuoto";
 import { IconBookOpen } from "../icons";
-import { leggiCorsi, type Corso } from "../letture";
+import { leggiCorsi, leggiProfessore, nomeCompleto, type Corso } from "../letture";
 import { useDati } from "../useDati";
 import { useWallet } from "../WalletProvider";
 
 export default function MieiCorsi() {
   const { indirizzo: io } = useWallet();
   const { dati: corsi, caricamento, errore, ricarica } = useDati(() => leggiCorsi(), []);
+  // Nome e cognome del professore connesso, per salutarlo nell'intestazione
+  const { dati: profilo } = useDati(() => (io ? leggiProfessore(io) : Promise.resolve(null)), [io]);
 
   const miei = (corsi ?? []).filter((c) => !!io && c.professore.toLowerCase() === io.toLowerCase());
 
@@ -37,8 +39,9 @@ export default function MieiCorsi() {
           </p>
         </div>
         {io && (
-          <div className="rounded-[9px] border border-bordo-medio bg-white px-3 py-2 text-[13px]">
-            <Indirizzo indirizzo={io} />
+          <div className="flex items-center gap-2.5 rounded-[9px] border border-bordo-medio bg-white px-3 py-2 text-[13px]">
+            {profilo && nomeCompleto(profilo) && <b>Prof. {nomeCompleto(profilo)}</b>}
+            <Indirizzo indirizzo={io} className="text-muto" />
           </div>
         )}
       </div>
@@ -80,7 +83,7 @@ export default function MieiCorsi() {
                 <p className="text-[13px] text-testo-3">
                   {c.cfu} CFU · {c.iscritti.length}/{c.max} iscritti
                 </p>
-                <p className="text-xs text-muto">Sola lettura: in attesa che la segreteria chiuda le iscrizioni.</p>
+                <p className="text-xs text-muto">Puoi iscrivere studenti; la segreteria chiuderà le iscrizioni.</p>
               </CardCorso>
             ))}
           </Gruppo>

@@ -13,7 +13,7 @@ import { sepolia } from "viem/chains";
 import { universitaAbi } from "./abi";
 import type { Indirizzo } from "./utils";
 
-export const CONTRACT_ADDRESS = "0x1fFf2f10994573d2AC59de2769b4612C445825D1"; // indirizzo contratto universita
+export const CONTRACT_ADDRESS = "0xaEc4cfEC09220934c153e16784E5E92D173eE25A"; // indirizzo contratto universita
 
 const opzioni = { timeout: 8000, retryCount: 1 };
 const nodo = (url?: string) => http(url, opzioni);

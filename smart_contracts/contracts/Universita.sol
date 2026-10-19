@@ -13,10 +13,19 @@ contract Universita is AccessControl {
     bytes32 public constant STUDENTE_ROLE = keccak256("STUDENTE_ROLE");
     bytes32 public constant CORSO_ROLE = keccak256("CORSO_ROLE");
 
+    struct Professore {
+        string nome;
+        string cognome;
+    }
+
     CarrieraStudenteFactory public factory;
     mapping(address => bool) public professori;
+    // Nome e cognome restano salvati anche se il professore viene rimosso:
+    // i suoi corsi continuano a mostrare chi li ha tenuti
+    mapping(address => Professore) private datiProfessori;
     address[] public listaProfessori;
     address[] public listaCorsi;
+    mapping(address => bool) public corsiValidi; // corsi creati da questo contratto
 
     constructor(address _segreteria) {
         require(_segreteria != address(0), "Indirizzo segreteria non valido");
@@ -29,10 +38,12 @@ contract Universita is AccessControl {
     // SEGRETERIA
     // -------------------------------------------------------
 
-    function aggiungiProfessore(address _professore) external onlyRole(SEGRETERIA_ROLE) {
+    function aggiungiProfessore(address _professore, string memory _nome, string memory _cognome) external onlyRole(SEGRETERIA_ROLE) {
         require(_professore != address(0), "Indirizzo professore non valido");
         require(!professori[_professore], "Professore gia' registrato");
+        require(bytes(_nome).length > 0 && bytes(_cognome).length > 0, "Nome e cognome obbligatori");
         professori[_professore] = true;
+        datiProfessori[_professore] = Professore(_nome, _cognome);
         listaProfessori.push(_professore);
         _grantRole(PROFESSORE_ROLE, _professore);
     }
@@ -59,10 +70,20 @@ contract Universita is AccessControl {
         require(professori[_professore], "Il professore non e' registrato nell'universita'");
         Corso nuovoCorso = new Corso( _nome, _cfu, _maxStudenti, _professore, msg.sender, address(this), SEGRETERIA_ROLE, PROFESSORE_ROLE);
         listaCorsi.push(address(nuovoCorso));
+        corsiValidi[address(nuovoCorso)] = true;
         return address(nuovoCorso);
     }
 
-    function iscriviStudenteACorso(address _studente, address _corso) external onlyRole(SEGRETERIA_ROLE) {
+    // Segreteria, oppure il professore a cui è assegnato il corso (e che è ancora abilitato)
+    function _segreteriaOProfessoreDelCorso(address _corso) internal view returns (bool) {
+        if (hasRole(SEGRETERIA_ROLE, msg.sender)) return true;
+        return hasRole(PROFESSORE_ROLE, msg.sender) && Corso(_corso).professore() == msg.sender;
+    }
+
+    function iscriviStudenteACorso(address _studente, address _corso) external {
+        // Solo corsi creati da questo contratto: un contratto "finto" riceverebbe CORSO_ROLE sulla carriera
+        require(corsiValidi[_corso], "Corso non valido");
+        require(_segreteriaOProfessoreDelCorso(_corso), "Solo la segreteria o il professore del corso possono iscrivere studenti");
         address carrieraAddr = factory.getCarriera(_studente);
         CarrieraStudente carriera = CarrieraStudente(carrieraAddr);
         carriera.grantRole(CORSO_ROLE, _corso);
@@ -74,7 +95,9 @@ contract Universita is AccessControl {
     }
 
     function registraVoto(address _corso, address _studente, int _voto, bool _lode) external {
-        require(hasRole(SEGRETERIA_ROLE, msg.sender) || hasRole(PROFESSORE_ROLE, msg.sender),"Solo il professore o la segreteria possono eseguire questa operazione");
+        require(corsiValidi[_corso], "Corso non valido");
+        // Il professore può registrare voti solo nei SUOI corsi
+        require(_segreteriaOProfessoreDelCorso(_corso), "Solo il professore o la segreteria possono eseguire questa operazione");
         Corso(_corso).registraVoto(_studente, _voto, _lode);
     }
 
@@ -125,5 +148,9 @@ contract Universita is AccessControl {
 
     function isProfessore(address _addr) external view returns (bool) {
         return professori[_addr];
+    }
+
+    function getProfessore(address _professore) external view returns (Professore memory) {
+        return datiProfessori[_professore];
     }
 }
