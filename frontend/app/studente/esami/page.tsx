@@ -4,7 +4,7 @@
 // Voti >= 18 in stato IN_ATTESA: lo studente li accetta (i CFU si sommano) o li rifiuta (definitivo).
 // Gli INSUFFICIENTI (< 18) sono registrati automaticamente e non si possono né accettare né rifiutare.
 
-import { useAzioni } from "../../AzioniProvider";
+import { MOTIVO_IN_ATTESA, useAzioni } from "../../AzioniProvider";
 import { useCarriera } from "../../CarrieraProvider";
 import { scriviContratto } from "../../client";
 import Bottone from "../../components/Bottone";
@@ -19,7 +19,7 @@ import { useWallet } from "../../WalletProvider";
 export default function EsamiDaGestire() {
   const { indirizzo: io } = useWallet();
   const { carriera, errore, ricarica } = useCarriera();
-  const { esegui, conferma } = useAzioni();
+  const { esegui, conferma, inAttesa: operazioneInAttesa } = useAzioni();
 
   if (errore) return <ErroreLettura onRiprova={ricarica} />;
 
@@ -44,7 +44,8 @@ export default function EsamiDaGestire() {
           invia: () => scriviContratto(io, "accettaEsame", [BigInt(e.id)]),
         },
       ],
-      `+${e.cfu} CFU accettati`
+      `+${e.cfu} CFU accettati`,
+      "esame-" + e.id
     );
     if (ok) ricarica();
   }
@@ -67,7 +68,8 @@ export default function EsamiDaGestire() {
           invia: () => scriviContratto(io, "rifiutaEsame", [BigInt(e.id)]),
         },
       ],
-      "Voto rifiutato"
+      "Voto rifiutato",
+      "esame-" + e.id
     );
     if (ok) ricarica();
   }
@@ -92,6 +94,8 @@ export default function EsamiDaGestire() {
           inAttesa.map((e) => {
             const dopo = carriera.cfu + e.cfu;
             const raggiunge = !carriera.laureato && dopo >= carriera.soglia;
+            // Accetta e Rifiuta restano disabilitati finché la decisione su questo esame non è confermata
+            const decisioneInAttesa = operazioneInAttesa("esame-" + e.id);
             return (
               <div key={e.id} className="rounded-[14px] border border-bordo bg-white p-5">
                 <div className="mb-3.5 flex items-start gap-3.5">
@@ -109,10 +113,22 @@ export default function EsamiDaGestire() {
                 </p>
 
                 <div className="flex flex-wrap gap-2.5">
-                  <Bottone variante="successo" onClick={() => accetta(e)} className="flex-[1_1_180px]">
-                    Accetta · +{e.cfu} CFU
+                  <Bottone
+                    variante="successo"
+                    onClick={() => accetta(e)}
+                    disabilitato={decisioneInAttesa}
+                    motivo={MOTIVO_IN_ATTESA}
+                    className="flex-[1_1_180px]"
+                  >
+                    {decisioneInAttesa ? "In attesa di conferma…" : `Accetta · +${e.cfu} CFU`}
                   </Bottone>
-                  <Bottone variante="pericoloLeggero" onClick={() => rifiuta(e)} className="flex-[1_1_120px]">
+                  <Bottone
+                    variante="pericoloLeggero"
+                    onClick={() => rifiuta(e)}
+                    disabilitato={decisioneInAttesa}
+                    motivo={MOTIVO_IN_ATTESA}
+                    className="flex-[1_1_120px]"
+                  >
                     Rifiuta
                   </Bottone>
                 </div>

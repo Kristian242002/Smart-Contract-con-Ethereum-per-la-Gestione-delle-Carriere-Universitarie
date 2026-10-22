@@ -6,7 +6,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useAzioni } from "../AzioniProvider";
+import { MOTIVO_IN_ATTESA, useAzioni } from "../AzioniProvider";
 import { scriviContratto } from "../client";
 import { IconLucchetto } from "../icons";
 import { leggiCarriera, leggiDettaglioCorso, statoCorso, type Corso, type IscrittoCorso } from "../letture";
@@ -128,7 +128,9 @@ type PropsStato = {
 
 function CorsoAperto({ corso, studenti, ruolo, onCambiato }: PropsStato) {
   const { indirizzo: io, ruoli } = useWallet();
-  const { esegui, conferma } = useAzioni();
+  const { esegui, conferma, inAttesa } = useAzioni();
+  const chiaveChiudi = "chiudi-" + corso.indirizzo;
+  const chiusuraInAttesa = inAttesa(chiaveChiudi);
   const pieno = corso.iscritti.length >= corso.max;
 
   // Iscrive la segreteria, oppure il professore a cui è assegnato il corso
@@ -154,7 +156,8 @@ function CorsoAperto({ corso, studenti, ruolo, onCambiato }: PropsStato) {
           invia: () => scriviContratto(io, "chiudiIscrizioniCorso", [corso.indirizzo]),
         },
       ],
-      "Iscrizioni chiuse"
+      "Iscrizioni chiuse",
+      chiaveChiudi
     );
     if (ok) onCambiato();
   }
@@ -196,8 +199,14 @@ function CorsoAperto({ corso, studenti, ruolo, onCambiato }: PropsStato) {
         {pieno && <p className="mb-3 text-[13px] text-[#9A6A2E]">Il corso è pieno: puoi chiudere le iscrizioni.</p>}
 
         {ruolo === "segreteria" ? (
-          <Bottone variante="scuro" onClick={chiudi} className="w-full">
-            Chiudi iscrizioni
+          <Bottone
+            variante="scuro"
+            onClick={chiudi}
+            disabilitato={chiusuraInAttesa}
+            motivo={MOTIVO_IN_ATTESA}
+            className="w-full"
+          >
+            {chiusuraInAttesa ? "In attesa di conferma…" : "Chiudi iscrizioni"}
           </Bottone>
         ) : (
           <p className="rounded-[10px] bg-sfondo p-3 text-[13px] text-testo-2">
@@ -211,8 +220,12 @@ function CorsoAperto({ corso, studenti, ruolo, onCambiato }: PropsStato) {
 
 function IscriviStudente({ corso, onIscritto }: { corso: Corso; onIscritto: () => void }) {
   const { indirizzo: io } = useWallet();
-  const { esegui } = useAzioni();
+  const { esegui, inAttesa } = useAzioni();
   const [testo, setTesto] = useState("");
+
+  // Un'iscrizione alla volta per corso: finché non è confermata il bottone resta disabilitato
+  const chiave = "iscrivi-" + corso.indirizzo;
+  const iscrizioneInAttesa = inAttesa(chiave);
 
   const q = testo.trim();
   const valido = indirizzoValido(q);
@@ -243,7 +256,8 @@ function IscriviStudente({ corso, onIscritto }: { corso: Corso; onIscritto: () =
           invia: () => scriviContratto(io, "iscriviStudenteACorso", [carriera.studente, corso.indirizzo]),
         },
       ],
-      "Studente iscritto al corso"
+      "Studente iscritto al corso",
+      chiave
     );
     if (ok) {
       setTesto("");
@@ -263,8 +277,12 @@ function IscriviStudente({ corso, onIscritto }: { corso: Corso; onIscritto: () =
           mono
           className="min-w-0 flex-[1_1_260px]"
         />
-        <Bottone onClick={iscrivi} disabilitato={!pronto} motivo={errore || "Inserisci un indirizzo"}>
-          Iscrivi
+        <Bottone
+          onClick={iscrivi}
+          disabilitato={!pronto || iscrizioneInAttesa}
+          motivo={iscrizioneInAttesa ? MOTIVO_IN_ATTESA : errore || "Inserisci un indirizzo"}
+        >
+          {iscrizioneInAttesa ? "In attesa…" : "Iscrivi"}
         </Bottone>
       </div>
       {pronto && carriera && (
@@ -282,8 +300,11 @@ type Inserimento = { voto: string; lode: boolean };
 
 function CorsoChiuso({ corso, studenti, ruolo, onCambiato }: PropsStato) {
   const { indirizzo: io, ruoli } = useWallet();
-  const { esegui, conferma } = useAzioni();
+  const { esegui, conferma, inAttesa } = useAzioni();
   const [inserimenti, setInserimenti] = useState<Record<string, Inserimento>>({});
+
+  // Una chiave per ogni voto (corso + studente): si disabilita solo la riga in attesa
+  const chiaveVoto = (studente: TipoIndirizzo) => `voto-${corso.indirizzo}-${studente}`;
 
   // Il professore può registrare solo nei suoi corsi (la segreteria in tutti)
   const mioCorso = !!io && corso.professore.toLowerCase() === io.toLowerCase();
@@ -321,7 +342,8 @@ function CorsoChiuso({ corso, studenti, ruolo, onCambiato }: PropsStato) {
           invia: () => scriviContratto(io, "registraVoto", [corso.indirizzo, s.indirizzo, BigInt(voto), lode]),
         },
       ],
-      "Voto registrato on-chain"
+      "Voto registrato on-chain",
+      chiaveVoto(s.indirizzo)
     );
     if (ok) {
       setInserimenti((prima) => {
@@ -388,6 +410,7 @@ function CorsoChiuso({ corso, studenti, ruolo, onCambiato }: PropsStato) {
 
             const lodePossibile = n === 30 || ins.lode;
             const pronto = n !== null && !errore && puoRegistrare;
+            const votoInAttesa = inAttesa(chiaveVoto(s.indirizzo));
 
             return (
               <div key={s.indirizzo} className="flex flex-wrap items-center gap-3 border-t border-riga py-3.5">
@@ -425,10 +448,16 @@ function CorsoChiuso({ corso, studenti, ruolo, onCambiato }: PropsStato) {
                   <Bottone
                     piccolo
                     onClick={() => n !== null && registra(s, n, ins.lode)}
-                    disabilitato={!pronto}
-                    motivo={!puoRegistrare ? "Non puoi registrare voti in questo corso" : errore || "Inserisci un voto"}
+                    disabilitato={!pronto || votoInAttesa}
+                    motivo={
+                      votoInAttesa
+                        ? MOTIVO_IN_ATTESA
+                        : !puoRegistrare
+                          ? "Non puoi registrare voti in questo corso"
+                          : errore || "Inserisci un voto"
+                    }
                   >
-                    Registra
+                    {votoInAttesa ? "In attesa…" : "Registra"}
                   </Bottone>
                 </div>
                 {errore && <div className="basis-full pl-12 text-xs text-rosso">{errore}</div>}

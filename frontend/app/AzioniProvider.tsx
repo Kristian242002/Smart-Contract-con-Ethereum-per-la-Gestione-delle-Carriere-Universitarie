@@ -40,6 +40,7 @@ type Movimento = {
   fase: Fase;
   messaggioOk: string; // es. "Voto registrato on-chain"
   ora: Date; // quando è partito
+  chiave?: string; // identifica l'operazione (es. "chiudi-0x…"): serve a disabilitare il suo bottone
   ripristinato?: boolean; // letto dal browser dopo un refresh: non si può più riprovare
 };
 
@@ -52,10 +53,14 @@ type Richiesta = {
 };
 
 type Azioni = {
-  esegui: (passi: Passo[], messaggioOk: string) => Promise<boolean>;
+  esegui: (passi: Passo[], messaggioOk: string, chiave?: string) => Promise<boolean>;
+  inAttesa: (chiave: string) => boolean; // c'è un'operazione con questa chiave non ancora confermata?
   conferma: (richiesta: Richiesta) => Promise<boolean>;
   toast: (messaggio: string) => void;
 };
+
+// Testo mostrato passando sopra un bottone disabilitato perché la sua transazione è in corso
+export const MOTIVO_IN_ATTESA = "Transazione in attesa di conferma";
 
 const AzioniContext = createContext<Azioni | null>(null);
 
@@ -208,10 +213,11 @@ export default function AzioniProvider({ children }: { children: React.ReactNode
   // Avvia un movimento: NON blocca la pagina, l'avanzamento si vede nel pannello.
   // La promessa si risolve con true quando tutte le firme sono confermate
   // (anche dopo un "Riprova"), con false se l'utente rimuove il movimento fallito.
-  function esegui(passi: Passo[], messaggioOk: string) {
+  // "chiave" (facoltativa) permette alla pagina di sapere, con inAttesa(), se l'operazione è ancora in corso.
+  function esegui(passi: Passo[], messaggioOk: string, chiave?: string) {
     // Id unico anche rispetto ai movimenti salvati prima di un refresh
     const id = Date.now() + Math.random();
-    const nuovo: Movimento = { id, passi, indice: 0, fase: { tipo: "firma" }, messaggioOk, ora: new Date() };
+    const nuovo: Movimento = { id, passi, indice: 0, fase: { tipo: "firma" }, messaggioOk, ora: new Date(), chiave };
 
     setMovimenti((s) => ({ ...s, lista: [nuovo, ...s.lista].slice(0, MAX_MOVIMENTI) }));
     setPannelloAperto(true);
@@ -281,6 +287,12 @@ export default function AzioniProvider({ children }: { children: React.ReactNode
     return { tipo: "errore", messaggio: err instanceof Error ? err.message : "Errore sconosciuto" };
   }
 
+  // L'operazione con questa chiave sta ancora aspettando la firma o la conferma?
+  // (dopo un esito negativo torna false: il bottone si riattiva)
+  function inAttesa(chiave: string) {
+    return movimenti.lista.some((m) => m.chiave === chiave && inCorso(m));
+  }
+
   // Riparte dal passo che è fallito
   function riprova(m: Movimento) {
     eseguiDa(m.id, m.passi, m.indice, m.messaggioOk);
@@ -294,7 +306,7 @@ export default function AzioniProvider({ children }: { children: React.ReactNode
   }
 
   return (
-    <AzioniContext.Provider value={{ esegui, conferma, toast }}>
+    <AzioniContext.Provider value={{ esegui, inAttesa, conferma, toast }}>
       {children}
       {richiesta && <FinestraConferma richiesta={richiesta} onRisposta={rispondiConferma} />}
       {movimenti.lista.length > 0 && (

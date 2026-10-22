@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useAzioni } from "../../AzioniProvider";
+import { MOTIVO_IN_ATTESA, useAzioni } from "../../AzioniProvider";
 import { scriviContratto } from "../../client";
 import Avatar from "../../components/Avatar";
 import Avviso from "../../components/Avviso";
@@ -135,7 +135,8 @@ function RigaCorso({ corso }: { corso: Corso }) {
 
 function CreaCorso({ professori, onCreato }: { professori: Professore[]; onCreato: () => void }) {
   const { indirizzo: io } = useWallet();
-  const { esegui } = useAzioni();
+  const { esegui, inAttesa } = useAzioni();
+  const creazioneInAttesa = inAttesa("crea-corso");
 
   const [nome, setNome] = useState("");
   const [cfu, setCfu] = useState(6);
@@ -164,7 +165,8 @@ function CreaCorso({ professori, onCreato }: { professori: Professore[]; onCreat
           invia: () => scriviContratto(io, "creaCorso", [n, BigInt(cfu), BigInt(maxNumero), professore.indirizzo]),
         },
       ],
-      "Corso creato"
+      "Corso creato",
+      "crea-corso"
     );
 
     if (ok) {
@@ -263,8 +265,13 @@ function CreaCorso({ professori, onCreato }: { professori: Professore[]; onCreat
           )}
         </div>
 
-        <Bottone onClick={crea} disabilitato={!!motivo} motivo={motivo} className="mt-1 w-full">
-          Crea corso on-chain
+        <Bottone
+          onClick={crea}
+          disabilitato={!!motivo || creazioneInAttesa}
+          motivo={creazioneInAttesa ? MOTIVO_IN_ATTESA : motivo}
+          className="mt-1 w-full"
+        >
+          {creazioneInAttesa ? "In attesa di conferma…" : "Crea corso on-chain"}
         </Bottone>
         <p className="text-xs leading-normal text-muto">
           Il corso nasce APERTO. Esegue il deploy di un contratto Corso.

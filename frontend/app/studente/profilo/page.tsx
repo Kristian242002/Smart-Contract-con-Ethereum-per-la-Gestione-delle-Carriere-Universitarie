@@ -5,7 +5,7 @@
 // (aggiornaNome, aggiornaCognome): se cambiano entrambi servono due firme.
 
 import { useState } from "react";
-import { useAzioni, type Passo } from "../../AzioniProvider";
+import { MOTIVO_IN_ATTESA, useAzioni, type Passo } from "../../AzioniProvider";
 import { useCarriera } from "../../CarrieraProvider";
 import { scriviContratto } from "../../client";
 import Avviso from "../../components/Avviso";
@@ -20,7 +20,8 @@ import { useWallet } from "../../WalletProvider";
 export default function Profilo() {
   const { indirizzo: io } = useWallet();
   const { carriera, errore, ricarica } = useCarriera();
-  const { esegui } = useAzioni();
+  const { esegui, inAttesa } = useAzioni();
+  const salvataggioInAttesa = inAttesa("profilo");
 
   // null = nessuna modifica in corso: i campi mostrano i valori del contratto
   const [modifica, setModifica] = useState<{ nome: string; cognome: string } | null>(null);
@@ -54,7 +55,7 @@ export default function Profilo() {
       });
     }
 
-    const ok = await esegui(passi, "Profilo aggiornato");
+    const ok = await esegui(passi, "Profilo aggiornato", "profilo");
     if (ok) {
       setModifica(null);
       ricarica();
@@ -97,8 +98,13 @@ export default function Profilo() {
         )}
 
         <div className="flex flex-wrap gap-2.5">
-          <Bottone onClick={salva} disabilitato={!!motivo} motivo={motivo} className="flex-[1_1_200px]">
-            Salva modifiche
+          <Bottone
+            onClick={salva}
+            disabilitato={!!motivo || salvataggioInAttesa}
+            motivo={salvataggioInAttesa ? MOTIVO_IN_ATTESA : motivo}
+            className="flex-[1_1_200px]"
+          >
+            {salvataggioInAttesa ? "In attesa di conferma…" : "Salva modifiche"}
           </Bottone>
           <Bottone variante="secondario" onClick={() => setModifica(null)}>
             Annulla

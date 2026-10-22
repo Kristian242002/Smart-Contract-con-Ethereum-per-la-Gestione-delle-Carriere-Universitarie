@@ -6,7 +6,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useAzioni } from "../../AzioniProvider";
+import { MOTIVO_IN_ATTESA, useAzioni } from "../../AzioniProvider";
 import { scriviContratto } from "../../client";
 import Avviso from "../../components/Avviso";
 import Bottone from "../../components/Bottone";
@@ -27,7 +27,8 @@ const TIPI = [
 
 export default function Studenti() {
   const { indirizzo: io } = useWallet();
-  const { esegui } = useAzioni();
+  const { esegui, inAttesa } = useAzioni();
+  const registrazioneInAttesa = inAttesa("registra-studente");
 
   const [studente, setStudente] = useState("");
   const [nome, setNome] = useState("");
@@ -62,7 +63,8 @@ export default function Studenti() {
           invia: () => scriviContratto(io, "registraStudente", [testo, tipo, n, c]),
         },
       ],
-      "Carriera creata on-chain"
+      "Carriera creata on-chain",
+      "registra-studente"
     );
 
     if (ok) {
@@ -138,11 +140,11 @@ export default function Studenti() {
 
               <Bottone
                 onClick={registra}
-                disabilitato={!completo}
-                motivo={errStudente || "Compila indirizzo, nome e cognome"}
+                disabilitato={!completo || registrazioneInAttesa}
+                motivo={registrazioneInAttesa ? MOTIVO_IN_ATTESA : errStudente || "Compila indirizzo, nome e cognome"}
                 className="w-full py-3.5! text-[15px]!"
               >
-                Crea carriera on-chain →
+                {registrazioneInAttesa ? "In attesa di conferma…" : "Crea carriera on-chain →"}
               </Bottone>
             </Card>
           )}

@@ -4,7 +4,7 @@
 // aggiungiProfessore salva indirizzo, nome e cognome; rimuoviProfessore toglie il ruolo.
 
 import { useState } from "react";
-import { useAzioni } from "../../AzioniProvider";
+import { MOTIVO_IN_ATTESA, useAzioni } from "../../AzioniProvider";
 import { scriviContratto } from "../../client";
 import Avatar from "../../components/Avatar";
 import Bottone from "../../components/Bottone";
@@ -22,7 +22,8 @@ import { useWallet } from "../../WalletProvider";
 
 export default function Professori() {
   const { indirizzo: io } = useWallet();
-  const { esegui, conferma } = useAzioni();
+  const { esegui, conferma, inAttesa } = useAzioni();
+  const aggiuntaInAttesa = inAttesa("aggiungi-professore");
   const [nuovo, setNuovo] = useState("");
   const [nome, setNome] = useState("");
   const [cognome, setCognome] = useState("");
@@ -61,7 +62,8 @@ export default function Professori() {
           invia: () => scriviContratto(io, "aggiungiProfessore", [testo, n, c]),
         },
       ],
-      "Professore abilitato"
+      "Professore abilitato",
+      "aggiungi-professore"
     );
     if (ok) {
       setNuovo("");
@@ -93,7 +95,8 @@ export default function Professori() {
           invia: () => scriviContratto(io, "rimuoviProfessore", [prof]),
         },
       ],
-      "Professore rimosso"
+      "Professore rimosso",
+      "rimuovi-" + prof
     );
     if (ok) ricarica();
   }
@@ -117,8 +120,13 @@ export default function Professori() {
             <Campo valore={nome} onCambia={setNome} segnaposto="Nome" className="min-w-0 flex-[1_1_160px]" />
             <Campo valore={cognome} onCambia={setCognome} segnaposto="Cognome" className="min-w-0 flex-[1_1_160px]" />
           </div>
-          <Bottone onClick={aggiungi} disabilitato={!puoAggiungere} motivo={motivo} className="self-start">
-            Abilita
+          <Bottone
+            onClick={aggiungi}
+            disabilitato={!puoAggiungere || aggiuntaInAttesa}
+            motivo={aggiuntaInAttesa ? MOTIVO_IN_ATTESA : motivo}
+            className="self-start"
+          >
+            {aggiuntaInAttesa ? "In attesa…" : "Abilita"}
           </Bottone>
         </div>
       </Card>
@@ -163,8 +171,10 @@ export default function Professori() {
                   variante="pericoloLeggero"
                   piccolo
                   onClick={() => rimuovi(p.indirizzo, nomeCompleto(p), nCorsi)}
+                  disabilitato={inAttesa("rimuovi-" + p.indirizzo)}
+                  motivo={MOTIVO_IN_ATTESA}
                 >
-                  Rimuovi
+                  {inAttesa("rimuovi-" + p.indirizzo) ? "In attesa…" : "Rimuovi"}
                 </Bottone>
               </div>
             );
