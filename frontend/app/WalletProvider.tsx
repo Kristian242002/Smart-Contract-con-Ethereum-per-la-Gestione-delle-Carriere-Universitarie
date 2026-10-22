@@ -1,7 +1,7 @@
 "use client";
 // Contesto del wallet: tiene indirizzo, rete e ruoli disponibili in TUTTE le pagine.
 import { createContext, useContext, useEffect, useState, useSyncExternalStore } from "react";
-import { keccak256, toBytes } from "viem";
+import { getAddress, keccak256, toBytes } from "viem";
 import { CONTRACT_ADDRESS, getWalletClient, publicClient } from "./client";
 import { universitaAbi } from "./abi";
 import type { Indirizzo } from "./utils";
@@ -54,6 +54,14 @@ async function caricaRuoli(indirizzo: Indirizzo): Promise<Ruoli> {
   return { segreteria, professore, studente };
 }
 
+// MetaMask restituisce gli indirizzi a volte in minuscolo, a volte con le maiuscole:
+// li scriviamo sempre nello stesso formato (getAddress), altrimenti lo stesso account
+// sembrerebbe "cambiato" e ricaricheremmo ruoli e dati per niente
+function primoAccount(accounts: unknown): Indirizzo | null {
+  const primo = (accounts as string[])[0];
+  return primo ? getAddress(primo) : null;
+}
+
 // ---------- MetaMask installato? ----------
 
 function nessunaIscrizione() {
@@ -88,31 +96,45 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     const eth = window.ethereum;
     if (!eth) return;
 
-    eth
-      .request({ method: "eth_accounts" })
-      .then((accounts) => setIndirizzo((accounts as Indirizzo[])[0] ?? null))
-      .catch(() => {})
-      .finally(() => setControllato(true));
+    // Chiede a MetaMask account e rete attuali
+    function ricontrolla() {
+      eth!
+        .request({ method: "eth_accounts" })
+        .then((accounts) => setIndirizzo(primoAccount(accounts)))
+        .catch(() => {})
+        .finally(() => setControllato(true));
 
-    eth
-      .request({ method: "eth_chainId" })
-      .then(setRete)
-      .catch(() => {});
+      eth!
+        .request({ method: "eth_chainId" })
+        .then(setRete)
+        .catch(() => {});
+    }
 
     function cambioAccount(accounts: unknown) {
-      setIndirizzo((accounts as Indirizzo[])[0] ?? null);
+      setIndirizzo(primoAccount(accounts));
     }
 
     function cambioRete(nuovaRete: unknown) {
       setRete(nuovaRete as string);
     }
 
+    // A volte MetaMask non invia l'evento accountsChanged (es. dopo che l'estensione
+    // si è "addormentata"): ricontrolliamo anche quando l'utente torna sulla pagina
+    function tornatoSullaPagina() {
+      if (document.visibilityState === "visible") ricontrolla();
+    }
+
+    ricontrolla();
     eth.on("accountsChanged", cambioAccount);
     eth.on("chainChanged", cambioRete);
+    window.addEventListener("focus", ricontrolla);
+    document.addEventListener("visibilitychange", tornatoSullaPagina);
 
     return () => {
       eth.removeListener("accountsChanged", cambioAccount);
       eth.removeListener("chainChanged", cambioRete);
+      window.removeEventListener("focus", ricontrolla);
+      document.removeEventListener("visibilitychange", tornatoSullaPagina);
     };
   }, []);
 
@@ -141,8 +163,8 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     setStatoConnessione("in_corso");
 
     try {
-      const [addr] = await walletClient.requestAddresses();
-      setIndirizzo(addr);
+      const addresses = await walletClient.requestAddresses();
+      setIndirizzo(primoAccount(addresses));
       setStatoConnessione("inattivo");
     } catch (err) {
       const code = (err as { code?: number }).code;
